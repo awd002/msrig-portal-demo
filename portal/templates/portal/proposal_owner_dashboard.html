@@ -1,0 +1,198 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>{{ proposal.title }} — Owner Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f4f6f9;
+    color: #111827;
+}
+.wrapper {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+}
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+h1 { margin: 0; font-size: 28px; }
+.subtitle { font-size: 14px; color: #6b7280; margin-top: 6px; }
+
+.badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+}
+.btn-approve { background: #dcfce7; color: #166534; }
+.btn-reject { background: #fee2e2; color: #991b1b; }
+.btn-close { background: #fee2e2; color: #7f1d1d; }
+.btn-reopen { background: #dbeafe; color: #1e40af; }
+
+.card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+    border: 1px solid #e5e7eb;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.name { font-size: 18px; font-weight: 600; }
+.email { font-size: 14px; color: #4b5563; }
+
+.status {
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+.pending { background: #fef3c7; color: #92400e; }
+.approved { background: #dcfce7; color: #166534; }
+.rejected { background: #fee2e2; color: #991b1b; }
+
+.section { margin-top: 16px; }
+.section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.answer { font-size: 14px; color: #374151; white-space: pre-wrap; }
+
+.actions {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.top-actions {
+    margin-top: 10px;
+}
+</style>
+</head>
+
+<body>
+<div class="wrapper">
+
+    <div class="header">
+        <div>
+            <h1>{{ proposal.title }}</h1>
+            <div class="subtitle">Proposal Owner Dashboard</div>
+        </div>
+
+        <div>
+            <div class="badge">{{ signups|length }} Signups</div>
+
+            <div class="top-actions">
+                {% if proposal.status == "OPEN" %}
+                    <form method="POST" action="{% url 'proposal_owner_close' proposal.slug token %}">
+                        {% csrf_token %}
+                        <button class="btn btn-close">Close Listing</button>
+                    </form>
+                {% else %}
+                    <form method="POST" action="{% url 'proposal_owner_reopen' proposal.slug token %}">
+                        {% csrf_token %}
+                        <button class="btn btn-reopen">Reopen Listing</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if signups %}
+        {% for signup in signups %}
+            <div class="card">
+
+                <div class="card-header">
+                    <div>
+                        <div class="name">{{ signup.volunteer_name }}</div>
+                        <div class="email">{{ signup.volunteer_email }}</div>
+                    </div>
+
+                    <div>
+                        {% if signup.status == "PENDING" %}
+                            <span class="status pending">Pending</span>
+                        {% elif signup.status == "APPROVED" %}
+                            <span class="status approved">Approved</span>
+                        {% else %}
+                            <span class="status rejected">Rejected</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% if signup.interest_reason %}
+                    <div class="section">
+                        <div class="section-title">Interest Statement</div>
+                        <div class="answer">{{ signup.interest_reason }}</div>
+                    </div>
+                {% endif %}
+
+                <div class="section">
+                    <div class="section-title">Custom Question Responses</div>
+                    {% for answer in signup.answers.all %}
+                        <div style="margin-bottom:10px;">
+                            <strong>{{ answer.question.prompt }}</strong>
+                            <div class="answer">{{ answer.answer|default:"N/A" }}</div>
+                        </div>
+                    {% empty %}
+                        <div class="answer">No custom questions.</div>
+                    {% endfor %}
+                </div>
+
+                {% if signup.status == "PENDING" %}
+                    <div class="actions">
+                        <form method="POST" action="{% url 'proposal_owner_decide_signup' proposal.slug token signup.id 'approve' %}">
+                            {% csrf_token %}
+                            <button class="btn btn-approve">Approve</button>
+                        </form>
+
+                        <form method="POST" action="{% url 'proposal_owner_decide_signup' proposal.slug token signup.id 'reject' %}">
+                            {% csrf_token %}
+                            <button class="btn btn-reject">Reject</button>
+                        </form>
+                    </div>
+                {% endif %}
+
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="card">
+            <h3>No signups yet</h3>
+        </div>
+    {% endif %}
+
+</div>
+</body>
+</html>

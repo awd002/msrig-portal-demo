@@ -1,0 +1,39 @@
+{% extends "portal/base.html" %}
+{% block title %}Browse Proposals | MSRIG{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Find a project. Join a team. Earn authorship.</h1>
+  <p>Browse student-led research ideas and sign up to help.</p>
+
+  <form class="filters" method="get">
+    <input name="q" value="{{ q }}" placeholder="Search titles or summaries...">
+    <select name="status">
+      <option value="">Any status</option>
+      <option value="OPEN" {% if status == "OPEN" %}selected{% endif %}>Open</option>
+      <option value="INPROG" {% if status == "INPROG" %}selected{% endif %}>In Progress</option>
+      <option value="CLOSED" {% if status == "CLOSED" %}selected{% endif %}>Closed</option>
+    </select>
+    <button type="submit" class="btn">Search</button>
+  </form>
+</section>
+
+<section class="grid">
+  {% for p in proposals %}
+    <article class="card">
+      <div class="card-top">
+        <span class="pill {{ p.status|lower }}">{{ p.get_status_display }}</span>
+        <span class="muted">{{ p.num_signups }} signup{{ p.num_signups|pluralize }}</span>
+      </div>
+      <h2><a href="{% url 'proposal_detail' p.slug %}">{{ p.title }}</a></h2>
+      <p>{{ p.summary|truncatechars:220 }}</p>
+      <div class="meta">
+        <span class="muted">Posted by {{ p.created_by_name }}</span>
+        <span class="muted">{{ p.created_at|date:"M j, Y" }}</span>
+      </div>
+    </article>
+  {% empty %}
+    <p class="muted">No proposals yet. Someone be the hero.</p>
+  {% endfor %}
+</section>
+{% endblock %}

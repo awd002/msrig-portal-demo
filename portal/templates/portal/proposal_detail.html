@@ -1,0 +1,40 @@
+{% extends "portal/base.html" %}
+{% block title %}{{ proposal.title }} | MSRIG{% endblock %}
+
+{% block content %}
+<article class="card">
+  <div class="card-top">
+    <span class="pill {{ proposal.status|lower }}">{{ proposal.get_status_display }}</span>
+    <span class="muted">Posted by {{ proposal.created_by_name }}</span>
+  </div>
+
+  <h1>{{ proposal.title }}</h1>
+
+  <p><strong>Summary</strong><br>{{ proposal.summary|linebreaksbr }}</p>
+
+  {% if proposal.background %}<p><strong>Background</strong><br>{{ proposal.background|linebreaksbr }}</p>{% endif %}
+  {% if proposal.aims %}<p><strong>Aims</strong><br>{{ proposal.aims|linebreaksbr }}</p>{% endif %}
+  {% if proposal.methods %}<p><strong>Methods</strong><br>{{ proposal.methods|linebreaksbr }}</p>{% endif %}
+  {% if proposal.skills_needed %}<p><strong>Skills needed:</strong> {{ proposal.skills_needed }}</p>{% endif %}
+  {% if proposal.time_commitment %}<p><strong>Time commitment:</strong> {{ proposal.time_commitment }}</p>{% endif %}
+
+  <div class="actions" style="margin-top:14px;">
+    {% if proposal.status == "OPEN" %}
+      <a class="btn" href="{% url 'proposal_signup' proposal.slug %}">Sign up to help</a>
+    {% else %}
+      <span class="muted">Signups are closed for this proposal.</span>
+    {% endif %}
+  </div>
+
+  <hr>
+
+  <h3>Custom questions</h3>
+  <ul>
+    {% for q in proposal.questions.all %}
+      <li>{{ q.prompt }} {% if q.is_required %}<span class="muted">(required)</span>{% endif %}</li>
+    {% empty %}
+      <li class="muted">No custom questions yet.</li>
+    {% endfor %}
+  </ul>
+</article>
+{% endblock %}

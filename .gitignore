@@ -1,0 +1,18 @@
+# Environment variables / secrets
+.env
+
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local database (don't publish demo data)
+db.sqlite3
+
+# Static files generated in production
+staticfiles/
+
+# macOS
+.DS_Store

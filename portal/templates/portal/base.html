@@ -1,0 +1,45 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}LSUHS MSRIG Research Board{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'portal/styles.css' %}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="{% url 'home' %}">
+        <div class="badge">LSUHS</div>
+        <div>
+          <div class="brand-title">MSRIG Research Proposal Board</div>
+          <div class="brand-sub">Shreveport • Collaborate • Publish</div>
+        </div>
+      </a>
+      <nav class="nav">
+        <a href="{% url 'home' %}">Browse</a>
+        <a class="nav-cta" href="{% url 'proposal_create' %}">Post a Proposal</a>
+        <a href="/admin/">Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% if messages %}
+      <div class="messages">
+        {% for message in messages %}
+          <div class="msg">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <small>Built for LSUHS MSRIG • May your p-values be humble and your coauthors responsive.</small>
+    </div>
+  </footer>
+</body>
+</html>

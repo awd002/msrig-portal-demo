@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Delete {{ proposal.title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            max-width: 500px;
+            width: 90%;
+            text-align: center;
+        }
+
+        h1 {
+            margin-bottom: 15px;
+            font-size: 24px;
+            color: #b91c1c;
+        }
+
+        p {
+            font-size: 15px;
+            color: #374151;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 12px 22px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .delete-btn {
+            background-color: #dc2626;
+            color: white;
+        }
+
+        .delete-btn:hover {
+            background-color: #b91c1c;
+        }
+
+        .cancel-btn {
+            background-color: #e5e7eb;
+            color: #111827;
+            text-decoration: none;
+            display: inline-block;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+
+        .cancel-btn:hover {
+            background-color: #d1d5db;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h1>Delete Proposal</h1>
+
+    <p>
+        You are about to permanently delete:
+        <br><strong>{{ proposal.title }}</strong>
+        <br><br>
+        This action cannot be undone.
+        All signups and responses will be permanently removed.
+    </p>
+
+    <div class="btn-row">
+        <form method="post"
+              action="{% url 'proposal_owner_delete' proposal.slug token %}">
+            {% csrf_token %}
+            <button type="submit" class="delete-btn">
+                Yes, Delete Permanently
+            </button>
+        </form>
+
+        <a href="{% url 'proposal_owner_dashboard' proposal.slug token %}"
+           class="cancel-btn">
+            Cancel
+        </a>
+    </div>
+</div>
+
+</body>
+</html>
