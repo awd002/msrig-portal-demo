@@ -6,6 +6,17 @@
   <h1>Find a project. Join a team. Earn authorship.</h1>
   <p>Browse student-led research ideas and sign up to help.</p>
 
+  {# MSRIG callout box (replaces the “LSUHS box” idea on this page) #}
+  <div class="card" style="margin-top: 14px;">
+    <div class="card-top">
+      <span class="pill open">MSRIG</span>
+      <span class="muted">LSUHS Student Research Portal</span>
+    </div>
+    <p class="muted" style="margin: 10px 0 0;">
+      The Medical Student Research Interest Group connects students to active projects, mentors, and teams.
+    </p>
+  </div>
+
   <form class="filters" method="get">
     <input name="q" value="{{ q }}" placeholder="Search titles or summaries...">
     <select name="status">
@@ -35,5 +46,16 @@
   {% empty %}
     <p class="muted">No proposals yet. Someone be the hero.</p>
   {% endfor %}
+</section>
+
+{# Footer / authorship block #}
+<section class="card" style="margin-top: 22px;">
+  <h2 style="margin-bottom: 8px;">Website created by</h2>
+  <p class="muted" style="margin-top: 0;">
+    Andrew Daigle · Wesley Jameson · Bailey Lupo · Christian Quinones
+  </p>
+  <p class="muted" style="margin-bottom: 0;">
+    If you have any questions or issues, please email <a href="mailto:msrig@lsuhs.edu">msrig@lsuhs.edu</a>.
+  </p>
 </section>
 {% endblock %}

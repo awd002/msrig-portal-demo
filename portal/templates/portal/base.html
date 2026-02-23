@@ -4,14 +4,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{% block title %}LSUHS MSRIG Research Board{% endblock %}</title>
+  <title>{% block title %}MSRIG Research Board{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'portal/styles.css' %}">
 </head>
 <body>
   <header class="topbar">
     <div class="wrap topbar-inner">
       <a class="brand" href="{% url 'home' %}">
-        <div class="badge">LSUHS</div>
+        <div class="badge">MSRIG</div>
         <div>
           <div class="brand-title">MSRIG Research Proposal Board</div>
           <div class="brand-sub">Shreveport • Collaborate • Publish</div>
@@ -38,7 +38,14 @@
 
   <footer class="footer">
     <div class="wrap">
-      <small>Built for LSUHS MSRIG • May your p-values be humble and your coauthors responsive.</small>
+      <small>
+        Website created by Andrew Daigle, Wesley Jameson, Bailey Lupo, Christian Quinones.
+      </small>
+      <br>
+      <small>
+        If you have any questions or issues, please email
+        <a href="mailto:msrig@lsuhs.edu">msrig@lsuhs.edu</a>.
+      </small>
     </div>
   </footer>
 </body>
