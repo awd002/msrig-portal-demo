@@ -1,13 +1,3 @@
-
-<style>
-  /* Collapsible tag filter polish */
-  #tagFilters .tag-grid{
-    max-height: 260px;
-    overflow: auto;
-    padding-right: 6px;
-  }
-</style>
-
 {% extends "portal/base.html" %}
 {% block title %}Browse Proposals | MSRIG{% endblock %}
 
@@ -24,7 +14,7 @@
         </p>
 
         <div class="d-flex gap-2 justify-content-center flex-wrap">
-          <a class="btn btn-gold" href="{% url 'home' %}">Browse Proposals</a>
+          <a class="btn btn-gold" href="{% url 'proposal_list' %}">Browse Proposals</a>
           <a class="btn btn-outline-light" href="{% url 'proposal_create' %}" style="font-weight:800;border-radius:12px;padding:10px 18px;">
             Submit a Proposal
           </a>
@@ -72,48 +62,7 @@
       <div class="col-md-2 d-grid">
         <button type="submit" class="btn btn-gold">Search</button>
       </div>
-  <!-- Tag filters (collapsible) -->
-  <div class="mt-3">
-    <div class="d-flex align-items-center justify-content-between">
-      <button class="btn btn-outline-secondary"
-              type="button"
-              data-bs-toggle="collapse"
-              data-bs-target="#tagFilters"
-              aria-expanded="false"
-              aria-controls="tagFilters"
-              style="border-radius:12px;font-weight:900;">
-        Filter by tags
-        {% if selected_tags %}<span class="ms-2" style="font-weight:900;">({{ selected_tags|length }} selected)</span>{% endif %}
-      </button>
-
-      <a href="{% url 'home' %}" class="text-muted" style="font-weight:800; text-decoration:none;">Clear</a>
-    </div>
-
-    <div class="collapse mt-3 {% if selected_tags %}show{% endif %}" id="tagFilters">
-      <div class="card" style="border-radius:16px;">
-        <div class="card-body" style="padding:16px 16px 14px;">
-          <div class="text-muted mb-2" style="font-weight:800;">Click to select. You can choose multiple.</div>
-
-          <div class="tag-grid">
-            {% for t in all_tags %}
-              <input class="btn-check" type="checkbox" name="tags" value="{{ t.slug }}" id="tag-{{ t.slug }}"
-                     {% if t.slug in selected_tags %}checked{% endif %}>
-              <label class="tag-pill" for="tag-{{ t.slug }}">{{ t.name }}</label>
-            {% endfor %}
-          </div>
-
-          <div class="d-flex gap-2 justify-content-end mt-3">
-            <button class="btn btn-outline-secondary" style="border-radius:12px;font-weight:900;" type="submit">
-              Apply
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-
-</form>
+    </form>
   </div>
 </div>
 
@@ -126,7 +75,7 @@
           <div class="card-body d-flex flex-column">
 
             <!-- Status + signups -->
-            <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="d-flex align-items-center justify-content-between">
               {% if p.status == "OPEN" %}
                 <span class="badge-status badge-open">OPEN</span>
               {% elif p.status == "INPROG" %}
@@ -134,8 +83,8 @@
               {% else %}
                 <span class="badge-status badge-closed">CLOSED</span>
               {% endif %}
-              <span class="text-muted" style="font-weight:700;font-size:.85rem;">
-                {{ p.signups_count }} signup{{ p.signups_count|pluralize }}
+              <span class="text-muted" style="font-weight:700;font-size:.9rem;">
+                {{ p.num_signups }} signup{{ p.num_signups|pluralize }}
               </span>
             </div>
 
@@ -151,10 +100,10 @@
 
             <!-- Meta -->
             <div class="mt-auto pt-2 d-flex justify-content-between align-items-center">
-              <span class="text-muted" style="font-size:.85rem;">
+              <span class="text-muted" style="font-size:.9rem;">
                 Posted by {{ p.created_by_name }}
               </span>
-              <span class="text-muted" style="font-size:.85rem;">
+              <span class="text-muted" style="font-size:.9rem;">
                 {{ p.created_at|date:"M j, Y" }}
               </span>
             </div>

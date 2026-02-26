@@ -1,9 +1,17 @@
 from django import forms
-from django.forms import formset_factory
-from .models import Proposal, ProposalQuestion
+from django.forms import inlineformset_factory
+
+from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
 
 
 class ProposalForm(forms.ModelForm):
+    tags = forms.ModelMultipleChoiceField(
+        queryset=Tag.objects.all(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text="Select all specialties/domains that apply."
+    )
+
     class Meta:
         model = Proposal
         fields = [
@@ -13,41 +21,55 @@ class ProposalForm(forms.ModelForm):
             "summary",
             "background",
             "aims",
-            "methods",
-            "skills_needed",
-            "time_commitment",
+            "status",
             "tags",
         ]
         widgets = {
-            "summary": forms.Textarea(attrs={"rows": 4}),
-            "background": forms.Textarea(attrs={"rows": 4}),
-            "aims": forms.Textarea(attrs={"rows": 4}),
-            "methods": forms.Textarea(attrs={"rows": 4}),
+            "created_by_name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Your name"}),
+            "created_by_email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "your.email@domain.com"}),
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Short, clear project title"}),
+            "summary": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "1–2 paragraph overview"}),
+            "background": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Optional background/context"}),
+            "aims": forms.Textarea(attrs={"class": "form-control", "rows": 4, "placeholder": "Optional aims / tasks"}),
+            "status": forms.Select(attrs={"class": "form-select"}),
         }
 
 
-class QuestionMiniForm(forms.Form):
-    prompt = forms.CharField(max_length=400, required=False)
-    is_required = forms.BooleanField(required=False, initial=True)
+class ProposalQuestionForm(forms.ModelForm):
+    class Meta:
+        model = ProposalQuestion
+        fields = ["prompt", "is_required", "sort_order"]
+        widgets = {
+            "prompt": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g., What year are you? Any stats/software experience?"}),
+            "is_required": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "sort_order": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+        }
 
 
-QuestionFormSet = formset_factory(QuestionMiniForm, extra=3, can_delete=True)
+# This is used when the proposal owner adds custom questions at creation time
+QuestionFormSet = inlineformset_factory(
+    Proposal,
+    ProposalQuestion,
+    form=ProposalQuestionForm,
+    extra=3,
+    can_delete=True
+)
 
 
-class SignupForm(forms.Form):
-    volunteer_name = forms.CharField(max_length=120)
-    volunteer_email = forms.EmailField()
-    interest_reason = forms.CharField(
-        required=False,
-        widget=forms.Textarea(attrs={"rows": 4}),
-    )
+class SignupForm(forms.ModelForm):
+    class Meta:
+        model = Signup
+        fields = ["name", "email"]
+        widgets = {
+            "name": forms.TextInput(attrs={"class": "form-control", "placeholder": "Your name"}),
+            "email": forms.EmailInput(attrs={"class": "form-control", "placeholder": "your.email@domain.com"}),
+        }
 
-    def __init__(self, *args, questions=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.questions = list(questions or [])
-        for q in self.questions:
-            self.fields[f"q_{q.id}"] = forms.CharField(
-                label=q.prompt,
-                required=q.is_required,
-                widget=forms.Textarea(attrs={"rows": 3}),
-            )
+
+class SignupAnswerForm(forms.ModelForm):
+    class Meta:
+        model = SignupAnswer
+        fields = ["answer_text"]
+        widgets = {
+            "answer_text": forms.Textarea(attrs={"class": "form-control", "rows": 2}),
+        }

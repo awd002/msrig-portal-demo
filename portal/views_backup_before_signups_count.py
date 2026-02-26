@@ -9,7 +9,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from .forms import ProposalForm, SignupForm, QuestionFormSet
-from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
+from .models import Proposal, ProposalQuestion, Signup, SignupAnswer
 
 
 VALID_STATUSES = {"OPEN", "INPROG", "CLOSED"}
@@ -33,15 +33,9 @@ def home(request):
     q = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
 
-    # Accept multiple tags via ?tags=slug&tags=slug2
-    selected_tags = request.GET.getlist("tags")
-    selected_tags = [t.strip() for t in selected_tags if t and t.strip()]
-
     proposals = (
         Proposal.objects.all()
-        # IMPORTANT: don't use 'num_signups' (often a @property); use a safe annotation name
-        .annotate(signups_count=Count("signups"))
-        .prefetch_related("tags")
+        .annotate(num_signups=Count("signups"))
         .order_by("-created_at")
     )
 
@@ -51,22 +45,13 @@ def home(request):
     if status in VALID_STATUSES:
         proposals = proposals.filter(status=status)
 
-    if selected_tags:
-        proposals = proposals.filter(tags__slug__in=selected_tags).distinct()
-
-    all_tags = Tag.objects.all().order_by("name")
-
     return render(
         request,
         "portal/home.html",
-        {
-            "proposals": proposals,
-            "q": q,
-            "status": status,
-            "all_tags": all_tags,
-            "selected_tags": set(selected_tags),
-        },
+        {"proposals": proposals, "q": q, "status": status},
     )
+
+
 def proposal_detail(request, slug):
     proposal = get_object_or_404(
         Proposal.objects.prefetch_related("questions"),

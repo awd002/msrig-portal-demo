@@ -1,0 +1,157 @@
+{% extends "portal/base.html" %}
+{% load widget_tweaks %}
+
+{% block title %}Submit a Proposal | MSRIG{% endblock %}
+
+{% block content %}
+
+<style>
+  /* Tag pill styling */
+  .tag-grid{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; }
+  .tag-pill input{ display:none; }
+  .tag-pill label{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 14px;
+    border-radius:999px;
+    background:#fff;
+    border:1px solid #ced4da;
+    font-weight:800;
+    color:#111827;
+    cursor:pointer;
+    user-select:none;
+  }
+  .tag-pill label::before{
+    content:"";
+    width:10px; height:10px;
+    border-radius:999px;
+    background: rgba(91,42,165,.25);
+  }
+  .tag-pill input:checked + label{
+    border-color: rgba(91,42,165,.55);
+    box-shadow: 0 0 0 .2rem rgba(91,42,165,.14);
+  }
+  .tag-pill input:checked + label::before{
+    background: var(--msrig-purple);
+  }
+</style>
+
+
+<section class="pagehead">
+  <div class="container text-center">
+    <h1 class="display-6">Submit a Proposal</h1>
+    <p class="lead">Post a project idea and recruit a team through MSRIG.</p>
+  </div>
+</section>
+
+<div class="container surface">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <div class="form-card">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+          <div style="font-weight:900; font-size:1.05rem;">Proposal Submission Form</div>
+          <span style="display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background: rgba(91,42,165,.10);color: var(--msrig-purple);font-weight:900;font-size:.85rem;">
+            MSRIG Portal
+          </span>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {# If you have non-field errors #}
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">
+              {{ form.non_field_errors }}
+            </div>
+          {% endif %}
+
+          {# Render fields cleanly with widget_tweaks #}
+          {% for field in form %}
+  {% if field.name == 'tags' %}
+    <div class="mb-4">
+      <label class="form-label" style="font-weight:900;">Specialties / Tags</label>
+      <div class="text-muted" style="font-weight:700; font-size:.9rem;">Click to select all that apply.</div>
+
+      <div class="tag-grid mt-2">
+        {% for cb in field %}
+          <label class="tag-pill" for="{{ cb.id_for_label }}">
+            {{ cb }}
+            <span class="tag-label">{{ cb.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+
+      {% if field.errors %}
+        <div class="text-danger mt-2" style="font-weight:800;">
+          {{ field.errors|striptags }}
+        </div>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="mb-3">
+      <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+
+      {% if field.errors %}
+        {{ field|add_class:"form-control is-invalid" }}
+        <div class="invalid-feedback">
+          {{ field.errors|striptags }}
+        </div>
+      {% else %}
+        {{ field|add_class:"form-control" }}
+      {% endif %}
+
+      {% if field.help_text %}
+        <div class="form-text">{{ field.help_text }}</div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endfor %}
+    </div>
+  </div>
+  {% else %}
+
+            <div class="mb-3">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+
+              {% if field.errors %}
+                {{ field|add_class:"form-control is-invalid" }}
+                <div class="invalid-feedback">
+                  {{ field.errors|striptags }}
+                </div>
+              {% else %}
+                {# Use textarea sizing for big fields #}
+                {% if field.field.widget.input_type == "textarea" %}
+                  {{ field|add_class:"form-control"|attr:"rows:4" }}
+                {% else %}
+                  {{ field|add_class:"form-control" }}
+                {% endif %}
+              {% endif %}
+
+              {% if field.help_text %}
+                <div class="form-text">{{ field.help_text|safe }}</div>
+              {% endif %}
+            </div>
+          {% endfor %}
+
+          <div class="d-flex gap-2 justify-content-end mt-4">
+            <a href="{% url 'home' %}" class="btn btn-outline-secondary" style="border-radius:12px;font-weight:800;">
+              Cancel
+            </a>
+            <button type="submit" class="btn btn-gold">
+              Create Proposal
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="text-center text-muted mt-3" style="font-weight:700;">
+        Tip: Strong summaries recruit faster than “TBD” (science is cruel like that).
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,40 +1,111 @@
 {% extends "portal/base.html" %}
-{% block title %}{{ proposal.title }} | MSRIG{% endblock %}
+{% load widget_tweaks %}
 
 {% block content %}
-<article class="card">
-  <div class="card-top">
-    <span class="pill {{ proposal.status|lower }}">{{ proposal.get_status_display }}</span>
-    <span class="muted">Posted by {{ proposal.created_by_name }}</span>
-  </div>
 
-  <h1>{{ proposal.title }}</h1>
+<!-- HERO HEADER -->
+<div class="proposal-hero">
+  <div class="hero-inner">
 
-  <p><strong>Summary</strong><br>{{ proposal.summary|linebreaksbr }}</p>
+    <div class="hero-left">
+      <h1 class="hero-title">{{ proposal.title }}</h1>
 
-  {% if proposal.background %}<p><strong>Background</strong><br>{{ proposal.background|linebreaksbr }}</p>{% endif %}
-  {% if proposal.aims %}<p><strong>Aims</strong><br>{{ proposal.aims|linebreaksbr }}</p>{% endif %}
-  {% if proposal.methods %}<p><strong>Methods</strong><br>{{ proposal.methods|linebreaksbr }}</p>{% endif %}
-  {% if proposal.skills_needed %}<p><strong>Skills needed:</strong> {{ proposal.skills_needed }}</p>{% endif %}
-  {% if proposal.time_commitment %}<p><strong>Time commitment:</strong> {{ proposal.time_commitment }}</p>{% endif %}
+      <div class="hero-meta">
+        <span class="badge-status badge-{{ proposal.status|lower }}">
+          {{ proposal.get_status_display }}
+        </span>
 
-  <div class="actions" style="margin-top:14px;">
+        {% for tag in proposal.tags.all %}
+          <span class="tag-pill">{{ tag.name }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
     {% if proposal.status == "OPEN" %}
-      <a class="btn" href="{% url 'proposal_signup' proposal.slug %}">Sign up to help</a>
-    {% else %}
-      <span class="muted">Signups are closed for this proposal.</span>
+    <div class="hero-right">
+      <a href="{% url 'proposal_signup' proposal.slug %}" class="btn-primary-lg">
+        Sign Up for This Project
+      </a>
+    </div>
     {% endif %}
+
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="proposal-container">
+
+  <div class="proposal-grid">
+
+    <!-- LEFT CONTENT -->
+    <div class="proposal-main">
+
+      <div class="content-card">
+
+        <section>
+          <h3>Summary</h3>
+          <p>{{ proposal.summary|linebreaks }}</p>
+        </section>
+
+        <section>
+          <h3>Background</h3>
+          <p>{{ proposal.background|linebreaks }}</p>
+        </section>
+
+        <section>
+          <h3>Aims</h3>
+          <p>{{ proposal.aims|linebreaks }}</p>
+        </section>
+
+        {% if proposal.questions.exists %}
+        <section>
+          <h3>Application Questions</h3>
+          <ul>
+            {% for q in proposal.questions.all %}
+              <li>{{ q.prompt }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+
+        {% if proposal.status == "OPEN" %}
+        <div class="bottom-cta">
+          <a href="{% url 'proposal_signup' proposal.slug %}" class="btn-primary-lg">
+            Sign Up for This Project
+          </a>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="proposal-sidebar">
+
+      <div class="sidebar-card">
+        <h5>Principal Investigator</h5>
+        <div class="pi-name">{{ proposal.created_by_name }}</div>
+        <div class="pi-email">{{ proposal.created_by_email }}</div>
+      </div>
+
+      <div class="sidebar-card">
+        <h5>Status</h5>
+        <span class="badge-status badge-{{ proposal.status|lower }}">
+          {{ proposal.get_status_display }}
+        </span>
+      </div>
+
+      <div class="sidebar-card">
+        <h5>Participation</h5>
+        <div class="spots">
+          {{ proposal.num_signups }} signups
+        </div>
+      </div>
+
+    </div>
+
   </div>
 
-  <hr>
+</div>
 
-  <h3>Custom questions</h3>
-  <ul>
-    {% for q in proposal.questions.all %}
-      <li>{{ q.prompt }} {% if q.is_required %}<span class="muted">(required)</span>{% endif %}</li>
-    {% empty %}
-      <li class="muted">No custom questions yet.</li>
-    {% endfor %}
-  </ul>
-</article>
 {% endblock %}

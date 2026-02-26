@@ -29,8 +29,8 @@ class Proposal(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     created_by_name = models.CharField(max_length=120)
     created_by_email = models.EmailField()
-
     title = models.CharField(max_length=180)
+
     slug = models.SlugField(max_length=220, unique=True, blank=True)
 
     summary = models.TextField()
@@ -39,15 +39,18 @@ class Proposal(models.Model):
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="OPEN")
 
+    # Used for owner dashboard link security
     owner_token = models.CharField(max_length=64, unique=True, blank=True, editable=False)
 
     # Pre-defined specialties/tags (many-to-many)
     tags = models.ManyToManyField(Tag, blank=True, related_name="proposals")
 
     def save(self, *args, **kwargs):
+        # Owner token
         if not self.owner_token:
             self.owner_token = secrets.token_hex(32)
 
+        # Slug
         if not self.slug:
             base = slugify(self.title)[:200] or "proposal"
             candidate = base
@@ -59,49 +62,5 @@ class Proposal(models.Model):
 
         super().save(*args, **kwargs)
 
-    @property
-    def num_signups(self):
-        return self.signups.count()
-
     def __str__(self):
         return self.title
-
-
-class ProposalQuestion(models.Model):
-    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name="questions")
-    prompt = models.CharField(max_length=240)
-    is_required = models.BooleanField(default=False)
-    sort_order = models.PositiveIntegerField(default=0)
-
-    class Meta:
-        ordering = ["sort_order", "id"]
-
-    def __str__(self):
-        return f"{self.proposal.title}: {self.prompt}"
-
-
-class Signup(models.Model):
-    STATUS_CHOICES = [
-        ("PENDING", "Pending"),
-        ("APPROVED", "Approved"),
-        ("REJECTED", "Rejected"),
-    ]
-
-    proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name="signups")
-    name = models.CharField(max_length=120)
-    email = models.EmailField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="PENDING")
-
-    def __str__(self):
-        return f"{self.proposal.title} - {self.name} ({self.status})"
-
-
-class SignupAnswer(models.Model):
-    signup = models.ForeignKey(Signup, on_delete=models.CASCADE, related_name="answers")
-    question = models.ForeignKey(ProposalQuestion, on_delete=models.CASCADE, related_name="answers")
-    answer_text = models.TextField(blank=True)
-
-    def __str__(self):
-        return f"Answer: {self.signup.name} -> {self.question.prompt[:40]}"
