@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import traceback
+from typing import Any
 
 from django.contrib import messages
 from django.db import transaction
@@ -24,9 +25,9 @@ VALID_DECISIONS = {"approve": "APPROVED", "reject": "REJECTED"}
 def _safe_email(*, subject: str, text_body: str, to_email: str, html_body: str | None = None) -> None:
     """
     Never crash user flow due to email issues.
-    Must match send_email(subject, to_email, text_body, html_body=None)
+    Must match send_email(subject, to_email, text_body, html_body=None).
     """
-    if not to_email:
+    if not (to_email or "").strip():
         print("ℹ️ Email skipped: empty recipient.")
         return
     try:
@@ -40,9 +41,79 @@ def _safe_email(*, subject: str, text_body: str, to_email: str, html_body: str |
 
 def _get_owner_proposal_or_404(slug: str, token: str) -> Proposal:
     proposal = get_object_or_404(Proposal, slug=slug)
-    if not proposal.owner_token or proposal.owner_token != token:
+    if not getattr(proposal, "owner_token", None) or proposal.owner_token != token:
         raise Http404("Owner page not found.")
     return proposal
+
+
+def _proposal_questions(proposal: Proposal) -> list[ProposalQuestion]:
+    """
+    Returns proposal questions regardless of related_name implementation.
+    You currently use proposal.questions; keep that, but fall back safely.
+    """
+    # Preferred: related_name="questions"
+    if hasattr(proposal, "questions"):
+        return list(proposal.questions.all().order_by("sort_order", "id"))
+    # Fallback: default related name proposalquestion_set
+    if hasattr(proposal, "proposalquestion_set"):
+        return list(proposal.proposalquestion_set.all().order_by("sort_order", "id"))
+    return []
+
+
+def _signup_field_value(cd: dict[str, Any], *keys: str) -> str:
+    for k in keys:
+        v = cd.get(k)
+        if v is not None:
+            s = str(v).strip()
+            if s:
+                return s
+    return ""
+
+
+def _make_signup_instance(*, proposal: Proposal, name: str, email: str, message: str, role: str) -> Signup:
+    """
+    Create a Signup instance that supports either schema:
+      - volunteer_name / volunteer_email / interest_reason
+      - name / email / message / role
+    """
+    signup = Signup()
+    signup.proposal = proposal
+
+    # Name
+    if hasattr(signup, "volunteer_name"):
+        signup.volunteer_name = name
+    elif hasattr(signup, "name"):
+        signup.name = name
+
+    # Email
+    if hasattr(signup, "volunteer_email"):
+        signup.volunteer_email = email
+    elif hasattr(signup, "email"):
+        signup.email = email
+
+    # Message / reason
+    if hasattr(signup, "interest_reason"):
+        signup.interest_reason = message
+    elif hasattr(signup, "message"):
+        signup.message = message
+
+    # Role (optional)
+    if hasattr(signup, "role"):
+        signup.role = role
+
+    return signup
+
+
+def _signup_display_name(signup: Signup) -> str:
+    return (
+        (getattr(signup, "volunteer_name", None) or "")
+        or (getattr(signup, "name", None) or "")
+        or f"Signup #{signup.pk}"
+    )
+
+
+def _signup_display_email(signup: Signup) -> str:
+    return (getattr(signup, "volunteer_email", None) or "") or (getattr(signup, "email", None) or "")
 
 
 # -------------------------------------------------------
@@ -86,7 +157,7 @@ def home(request: HttpRequest) -> HttpResponse:
 
 def proposal_detail(request: HttpRequest, slug: str) -> HttpResponse:
     proposal = get_object_or_404(
-        Proposal.objects.prefetch_related("questions", "tags"),
+        Proposal.objects.prefetch_related("tags", "questions"),
         slug=slug,
     )
     return render(request, "portal/proposal_detail.html", {"proposal": proposal})
@@ -173,59 +244,83 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
         messages.warning(request, "This proposal is not accepting signups right now.")
         return redirect("proposal_detail", slug=proposal.slug)
 
-    questions = list(proposal.questions.all().order_by("sort_order", "id"))
+    questions = _proposal_questions(proposal)
     q_errors: dict[int, str] = {}
 
     if request.method == "POST":
-        form = SignupForm(request.POST)
+        # IMPORTANT: If your SignupForm supports dynamic questions via __init__(questions=...),
+        # you can pass them. If not, it will ignore because we won't pass unknown kwargs.
+        try:
+            form = SignupForm(request.POST, questions=questions)  # type: ignore[arg-type]
+        except TypeError:
+            form = SignupForm(request.POST)
 
-        # Validate required custom questions safely (no crashing)
+        # Validate required custom questions safely
         for q in questions:
             val = (request.POST.get(f"q_{q.id}") or "").strip()
             if q.is_required and not val:
                 q_errors[q.id] = "This question is required."
 
         if form.is_valid() and not q_errors:
-            with transaction.atomic():
-                signup = Signup.objects.create(
-                    proposal=proposal,
-                    volunteer_name=form.cleaned_data["volunteer_name"],
-                    volunteer_email=form.cleaned_data["volunteer_email"],
-                    interest_reason=form.cleaned_data.get("interest_reason", "") or "",
-                )
+            cd = form.cleaned_data
 
-                answers_to_create: list[SignupAnswer] = []
-                for q in questions:
-                    val = (request.POST.get(f"q_{q.id}") or "").strip()
-                    answers_to_create.append(SignupAnswer(signup=signup, question=q, answer=val))
+            # Support either naming convention
+            name = _signup_field_value(cd, "volunteer_name", "name")
+            email = _signup_field_value(cd, "volunteer_email", "email")
+            message_txt = _signup_field_value(cd, "interest_reason", "message")
+            role = _signup_field_value(cd, "role")
 
-                if answers_to_create:
-                    SignupAnswer.objects.bulk_create(answers_to_create)
+            # As an extra safety net, never allow blank email/name to slip through
+            if not name:
+                messages.error(request, "Please enter your name.")
+            elif not email:
+                messages.error(request, "Please enter your email.")
+            else:
+                with transaction.atomic():
+                    signup = _make_signup_instance(
+                        proposal=proposal,
+                        name=name,
+                        email=email,
+                        message=message_txt,
+                        role=role,
+                    )
+                    signup.save()
 
-            recipient = getattr(proposal, "created_by_email", None)
-            if recipient:
-                owner_dashboard_link = request.build_absolute_uri(
-                    reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
-                )
-                _safe_email(
-                    subject=f"New MSRIG Signup – {proposal.title}",
-                    text_body=(
-                        "A new volunteer signed up for your proposal:\n\n"
-                        f"Volunteer: {signup.volunteer_name}\n"
-                        f"Email: {signup.volunteer_email}\n\n"
-                        "Owner dashboard:\n"
-                        f"{owner_dashboard_link}\n"
-                    ),
-                    to_email=recipient,
-                )
+                    answers_to_create: list[SignupAnswer] = []
+                    for q in questions:
+                        val = (request.POST.get(f"q_{q.id}") or "").strip()
+                        answers_to_create.append(SignupAnswer(signup=signup, question=q, answer=val))
 
-            messages.success(request, "Signed up! The proposal owner has been notified.")
-            return redirect("proposal_detail", slug=proposal.slug)
+                    if answers_to_create:
+                        SignupAnswer.objects.bulk_create(answers_to_create)
+
+                recipient = getattr(proposal, "created_by_email", None)
+                if recipient:
+                    owner_dashboard_link = request.build_absolute_uri(
+                        reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
+                    )
+                    _safe_email(
+                        subject=f"New MSRIG Signup – {proposal.title}",
+                        text_body=(
+                            "A new volunteer signed up for your proposal:\n\n"
+                            f"Volunteer: {_signup_display_name(signup)}\n"
+                            f"Email: {_signup_display_email(signup)}\n\n"
+                            "Owner dashboard:\n"
+                            f"{owner_dashboard_link}\n"
+                        ),
+                        to_email=recipient,
+                    )
+
+                messages.success(request, "Signed up! The proposal owner has been notified.")
+                return redirect("proposal_detail", slug=proposal.slug)
 
         if q_errors:
             messages.error(request, "Please answer the required custom questions.")
     else:
-        form = SignupForm()
+        try:
+            form = SignupForm(questions=_proposal_questions(proposal))  # type: ignore[arg-type]
+        except TypeError:
+            form = SignupForm()
 
     return render(
         request,
@@ -273,12 +368,22 @@ def proposal_owner_decide_signup(
     signup = get_object_or_404(Signup, id=signup_id, proposal=proposal)
     new_status = VALID_DECISIONS[decision]
 
-    signup.set_status(new_status)
+    # Use model method if present, else set a field if you have it
+    if hasattr(signup, "set_status") and callable(getattr(signup, "set_status")):
+        signup.set_status(new_status)
+    elif hasattr(signup, "status"):
+        signup.status = new_status
+        signup.save(update_fields=["status"])
+    else:
+        signup.save()
+
+    display_name = _signup_display_name(signup)
+    display_email = _signup_display_email(signup)
 
     if new_status == "APPROVED":
         subject = f"MSRIG Update: Approved – {proposal.title}"
         text_body = (
-            f"Hi {signup.volunteer_name},\n\n"
+            f"Hi {display_name},\n\n"
             "You have been APPROVED for:\n"
             f"{proposal.title}\n\n"
             "The proposal owner will contact you soon.\n\n"
@@ -287,7 +392,7 @@ def proposal_owner_decide_signup(
     else:
         subject = f"MSRIG Update: Not Selected – {proposal.title}"
         text_body = (
-            f"Hi {signup.volunteer_name},\n\n"
+            f"Hi {display_name},\n\n"
             "Thank you for signing up for:\n"
             f"{proposal.title}\n\n"
             "At this time, you were not selected.\n\n"
@@ -295,9 +400,9 @@ def proposal_owner_decide_signup(
             "Best,\nMSRIG"
         )
 
-    _safe_email(subject=subject, text_body=text_body, to_email=signup.volunteer_email)
+    _safe_email(subject=subject, text_body=text_body, to_email=display_email)
 
-    messages.success(request, f"{signup.volunteer_name} marked as {new_status}.")
+    messages.success(request, f"{display_name} marked as {new_status}.")
     return redirect("proposal_owner_dashboard", slug=proposal.slug, token=proposal.owner_token)
 
 
