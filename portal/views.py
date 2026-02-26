@@ -135,7 +135,7 @@ def proposal_create(request):
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[recipient],
-                    fail_silently=False,
+                    fail_silently=True,
                 )
 
             messages.success(
@@ -207,7 +207,7 @@ def proposal_signup(request, slug):
                     ),
                     from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[recipient],
-                    fail_silently=False,
+                    fail_silently=True,
                 )
 
             messages.success(request, "Signed up! The proposal owner has been notified.")
@@ -276,7 +276,7 @@ def proposal_owner_decide_signup(request, slug, token, signup_id, decision):
         message=body,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[signup.volunteer_email],
-        fail_silently=False,
+        fail_silently=True,
     )
 
     messages.success(request, f"{signup.volunteer_name} marked as {new_status}.")
