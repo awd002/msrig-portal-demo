@@ -1,6 +1,7 @@
 from django.db import migrations
+from django.utils.text import slugify
 
-TAG_NAMES = [
+TAGS = [
     "AI/ML",
     "Anesthesiology",
     "Biomechanics",
@@ -40,17 +41,11 @@ TAG_NAMES = [
     "Vascular Surgery",
 ]
 
-
 def seed_tags(apps, schema_editor):
     Tag = apps.get_model("portal", "Tag")
-    for name in TAG_NAMES:
-        Tag.objects.get_or_create(name=name)
-
-
-def unseed_tags(apps, schema_editor):
-    Tag = apps.get_model("portal", "Tag")
-    Tag.objects.filter(name__in=TAG_NAMES).delete()
-
+    for name in TAGS:
+        slug = slugify(name)[:250]
+        Tag.objects.get_or_create(slug=slug, defaults={"name": name})
 
 class Migration(migrations.Migration):
 
@@ -59,5 +54,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(seed_tags, reverse_code=unseed_tags),
+        migrations.RunPython(seed_tags, migrations.RunPython.noop),
     ]

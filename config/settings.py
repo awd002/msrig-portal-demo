@@ -189,34 +189,3 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": LOG_LEVEL},
 }
-
-
-# ------------------------------------------------------------
-# Optional: Auto-create superuser (NO shell required)
-# ------------------------------------------------------------
-# Use ONLY as a one-time bootstrap:
-#   CREATE_SUPERUSER=1
-#   DJANGO_SUPERUSER_USERNAME=admin
-#   DJANGO_SUPERUSER_EMAIL=msrig.portal@gmail.com
-#   DJANGO_SUPERUSER_PASSWORD=<strong password>
-#
-# After you can log in, REMOVE CREATE_SUPERUSER and redeploy.
-if os.environ.get("CREATE_SUPERUSER", "0") == "1":
-    try:
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
-
-        username = os.environ.get("DJANGO_SUPERUSER_USERNAME", "admin").strip()
-        email = os.environ.get("DJANGO_SUPERUSER_EMAIL", "admin@example.com").strip()
-        password = os.environ.get("DJANGO_SUPERUSER_PASSWORD", "")
-
-        if not password:
-            print("⚠️ CREATE_SUPERUSER=1 but DJANGO_SUPERUSER_PASSWORD is missing; skipping.")
-        elif User.objects.filter(username=username).exists():
-            print("ℹ️ Superuser already exists; skipping.")
-        else:
-            User.objects.create_superuser(username, email, password)
-            print("✅ Superuser created.")
-    except Exception as e:
-        print("⚠️ Superuser bootstrap failed:", e)
