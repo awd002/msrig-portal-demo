@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import traceback
-from typing import Iterable
 
 from django.contrib import messages
 from django.db import transaction
@@ -19,16 +18,19 @@ VALID_STATUSES = {"OPEN", "INPROG", "CLOSED"}
 VALID_DECISIONS = {"approve": "APPROVED", "reject": "REJECTED"}
 
 
-def _safe_email(*, subject: str, body: str, to_email: str) -> None:
+# -------------------------------------------------------
+# Utilities
+# -------------------------------------------------------
+def _safe_email(*, subject: str, text_body: str, to_email: str, html_body: str | None = None) -> None:
     """
-    Send email and NEVER crash the user flow, but DO log failures so Render logs show the cause.
+    Never crash user flow due to email issues.
+    Must match send_email(subject, to_email, text_body, html_body=None)
     """
     if not to_email:
         print("ℹ️ Email skipped: empty recipient.")
         return
-
     try:
-        send_email(subject=subject, body=body, to_email=to_email)
+        send_email(subject=subject, to_email=to_email, text_body=text_body, html_body=html_body)
         print(f"✅ Email attempted to={to_email} subject={subject!r}")
     except Exception as e:
         print(f"❌ Email FAILED to={to_email} subject={subject!r}")
@@ -49,13 +51,11 @@ def _get_owner_proposal_or_404(slug: str, token: str) -> Proposal:
 def home(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
-
-    # Accept multiple tags via ?tags=slug&tags=slug2
     selected_tags = [t.strip() for t in request.GET.getlist("tags") if t and t.strip()]
 
     proposals = (
         Proposal.objects.all()
-        .annotate(signups_count=Count("signups"))  # safe annotation
+        .annotate(signups_count=Count("signups"))
         .prefetch_related("tags")
         .order_by("-created_at")
     )
@@ -86,7 +86,7 @@ def home(request: HttpRequest) -> HttpResponse:
 
 def proposal_detail(request: HttpRequest, slug: str) -> HttpResponse:
     proposal = get_object_or_404(
-        Proposal.objects.prefetch_related("questions"),
+        Proposal.objects.prefetch_related("questions", "tags"),
         slug=slug,
     )
     return render(request, "portal/proposal_detail.html", {"proposal": proposal})
@@ -126,19 +126,14 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
                 if questions_to_create:
                     ProposalQuestion.objects.bulk_create(questions_to_create)
 
-            # Email owner dashboard link immediately after creation
             recipient = getattr(proposal, "created_by_email", None)
             if recipient:
                 owner_dashboard_link = request.build_absolute_uri(
-                    reverse(
-                        "proposal_owner_dashboard",
-                        kwargs={"slug": proposal.slug, "token": proposal.owner_token},
-                    )
+                    reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
                 )
-
                 _safe_email(
                     subject=f"MSRIG Proposal Created – Owner Dashboard Link – {proposal.title}",
-                    body=(
+                    text_body=(
                         "Your proposal has been created successfully!\n\n"
                         f"Title: {proposal.title}\n\n"
                         "Owner dashboard (bookmark this link):\n"
@@ -153,10 +148,7 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
                     to_email=recipient,
                 )
 
-            messages.success(
-                request,
-                "Proposal created! The owner dashboard link has been sent to the owner email.",
-            )
+            messages.success(request, "Proposal created! The owner dashboard link has been sent to the owner email.")
             return redirect("proposal_detail", slug=proposal.slug)
     else:
         form = ProposalForm()
@@ -167,20 +159,33 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
 
 @require_http_methods(["GET", "POST"])
 def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
+    """
+    Public signup flow.
+    - Base fields handled by SignupForm
+    - Custom questions handled by POST keys q_<question_id>
+    """
     proposal = get_object_or_404(
         Proposal.objects.prefetch_related("questions"),
         slug=slug,
     )
-    questions = list(proposal.questions.all())
 
     if proposal.status != "OPEN":
         messages.warning(request, "This proposal is not accepting signups right now.")
         return redirect("proposal_detail", slug=proposal.slug)
 
-    if request.method == "POST":
-        form = SignupForm(request.POST, questions=questions)
+    questions = list(proposal.questions.all().order_by("sort_order", "id"))
+    q_errors: dict[int, str] = {}
 
-        if form.is_valid():
+    if request.method == "POST":
+        form = SignupForm(request.POST)
+
+        # Validate required custom questions safely (no crashing)
+        for q in questions:
+            val = (request.POST.get(f"q_{q.id}") or "").strip()
+            if q.is_required and not val:
+                q_errors[q.id] = "This question is required."
+
+        if form.is_valid() and not q_errors:
             with transaction.atomic():
                 signup = Signup.objects.create(
                     proposal=proposal,
@@ -189,49 +194,48 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
                     interest_reason=form.cleaned_data.get("interest_reason", "") or "",
                 )
 
-                answers: list[SignupAnswer] = [
-                    SignupAnswer(
-                        signup=signup,
-                        question=q,
-                        answer=form.cleaned_data.get(f"q_{q.id}", "") or "",
-                    )
-                    for q in questions
-                ]
+                answers_to_create: list[SignupAnswer] = []
+                for q in questions:
+                    val = (request.POST.get(f"q_{q.id}") or "").strip()
+                    answers_to_create.append(SignupAnswer(signup=signup, question=q, answer=val))
 
-                if answers:
-                    SignupAnswer.objects.bulk_create(answers)
+                if answers_to_create:
+                    SignupAnswer.objects.bulk_create(answers_to_create)
 
-            # Notify proposal owner
             recipient = getattr(proposal, "created_by_email", None)
             if recipient:
                 owner_dashboard_link = request.build_absolute_uri(
-                    reverse(
-                        "proposal_owner_dashboard",
-                        kwargs={"slug": proposal.slug, "token": proposal.owner_token},
-                    )
+                    reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
                 )
-
                 _safe_email(
                     subject=f"New MSRIG Signup – {proposal.title}",
-                    body=(
+                    text_body=(
                         "A new volunteer signed up for your proposal:\n\n"
                         f"Volunteer: {signup.volunteer_name}\n"
                         f"Email: {signup.volunteer_email}\n\n"
                         "Owner dashboard:\n"
-                        f"{owner_dashboard_link}"
+                        f"{owner_dashboard_link}\n"
                     ),
                     to_email=recipient,
                 )
 
             messages.success(request, "Signed up! The proposal owner has been notified.")
             return redirect("proposal_detail", slug=proposal.slug)
+
+        if q_errors:
+            messages.error(request, "Please answer the required custom questions.")
     else:
-        form = SignupForm(questions=questions)
+        form = SignupForm()
 
     return render(
         request,
         "portal/proposal_signup.html",
-        {"proposal": proposal, "form": form},
+        {
+            "proposal": proposal,
+            "form": form,
+            "questions": questions,
+            "q_errors": q_errors,
+        },
     )
 
 
@@ -273,7 +277,7 @@ def proposal_owner_decide_signup(
 
     if new_status == "APPROVED":
         subject = f"MSRIG Update: Approved – {proposal.title}"
-        body = (
+        text_body = (
             f"Hi {signup.volunteer_name},\n\n"
             "You have been APPROVED for:\n"
             f"{proposal.title}\n\n"
@@ -282,7 +286,7 @@ def proposal_owner_decide_signup(
         )
     else:
         subject = f"MSRIG Update: Not Selected – {proposal.title}"
-        body = (
+        text_body = (
             f"Hi {signup.volunteer_name},\n\n"
             "Thank you for signing up for:\n"
             f"{proposal.title}\n\n"
@@ -291,7 +295,7 @@ def proposal_owner_decide_signup(
             "Best,\nMSRIG"
         )
 
-    _safe_email(subject=subject, body=body, to_email=signup.volunteer_email)
+    _safe_email(subject=subject, text_body=text_body, to_email=signup.volunteer_email)
 
     messages.success(request, f"{signup.volunteer_name} marked as {new_status}.")
     return redirect("proposal_owner_dashboard", slug=proposal.slug, token=proposal.owner_token)
