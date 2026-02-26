@@ -1,34 +1,22 @@
-import logging
+from __future__ import annotations
+
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
-
-logger = logging.getLogger(__name__)
+from django.core.mail import send_mail
 
 
-def send_email(subject: str, to_email: str, text_body: str, html_body: str | None = None) -> None:
+def send_email(*, subject: str, body: str, to_email: str, from_email: str | None = None) -> None:
     """
-    Sends email using Django's configured email backend.
-    Respects settings.EMAIL_BACKEND (console or smtp).
+    Thin wrapper around Django's email system.
+
+    Uses settings.EMAIL_BACKEND, settings.DEFAULT_FROM_EMAIL, and your SMTP env vars.
     """
+    if not to_email:
+        return
 
-    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", None)
-
-    if not from_email:
-        raise RuntimeError("DEFAULT_FROM_EMAIL not configured.")
-
-    message = EmailMultiAlternatives(
+    send_mail(
         subject=subject,
-        body=text_body,
-        from_email=from_email,
-        to=[to_email],
+        message=body,
+        from_email=from_email or settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[to_email],
+        fail_silently=False,
     )
-
-    if html_body:
-        message.attach_alternative(html_body, "text/html")
-
-    try:
-        message.send(fail_silently=False)
-        logger.info("Email sent to %s | subject=%s", to_email, subject)
-    except Exception as e:
-        logger.exception("Email failed to %s | subject=%s | error=%s", to_email, subject, e)
-        raise
