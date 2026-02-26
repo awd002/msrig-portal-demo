@@ -3,23 +3,83 @@
 {% block title %}Sign up | {{ proposal.title }}{% endblock %}
 
 {% block content %}
-<div class="card">
-  <h1>Sign up to help</h1>
-  <p class="muted">You’re signing up for: <strong>{{ proposal.title }}</strong></p>
 
-  <form method="post" class="form">
-    {% csrf_token %}
+<style>
+  .signup-card{
+    background:white;border:1px solid rgba(0,0,0,.06);
+    border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,.06);
+  }
+  .req{ color:#b91c1c; font-weight:900; }
+</style>
 
-    {% for field in form %}
-      <label>
-        {{ field.label }}{% if field.field.required %} <span class="req">*</span>{% endif %}
-      </label>
-      {% render_field field class="input" %}
-      {% if field.help_text %}<div class="muted">{{ field.help_text }}</div>{% endif %}
-      {% for error in field.errors %}<div class="error">{{ error }}</div>{% endfor %}
-    {% endfor %}
+<!-- HERO (matches home layout) -->
+<section class="hero">
+  <div class="container">
+    <div class="row justify-content-center text-center">
+      <div class="col-lg-9">
+        <h1 class="display-6 mb-3">Sign up to help</h1>
+        <p class="lead mb-0">
+          You’re signing up for: <strong>{{ proposal.title }}</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
-    <button class="btn" type="submit">Submit signup</button>
-  </form>
+<!-- “floating panel” like home toolbar -->
+<div class="container toolbar">
+  <div class="panel">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div class="text-muted" style="font-weight:800;">
+        Complete the form below. The proposal owner will review your request.
+      </div>
+      <a class="btn btn-outline-secondary"
+         href="{% url 'proposal_detail' proposal.slug %}"
+         style="border-radius:12px;font-weight:900;">
+        Back to proposal
+      </a>
+    </div>
+  </div>
 </div>
+
+<div class="container my-4" style="max-width: 900px;">
+  <div class="signup-card">
+    <div class="card-body" style="padding:16px 16px 14px;">
+
+      <form method="post">
+        {% csrf_token %}
+
+        {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" style="font-weight:900;">
+              {{ field.label }}
+              {% if field.field.required %}<span class="req">*</span>{% endif %}
+            </label>
+
+            {% render_field field class="form-control" %}
+
+            {% if field.help_text %}
+              <div class="form-text text-muted" style="font-weight:700;">{{ field.help_text }}</div>
+            {% endif %}
+
+            {% for error in field.errors %}
+              <div class="text-danger" style="font-weight:800;">{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endfor %}
+
+        <div class="d-flex gap-2 flex-wrap mt-3">
+          <button class="btn btn-gold" type="submit">Submit signup</button>
+          <a class="btn btn-outline-secondary"
+             href="{% url 'proposal_detail' proposal.slug %}"
+             style="border-radius:12px;font-weight:900;">
+            Cancel
+          </a>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>
+
 {% endblock %}
