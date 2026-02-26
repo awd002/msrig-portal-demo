@@ -1,33 +1,42 @@
-from django.conf import settings
+from __future__ import annotations
+
+import traceback
+from typing import Iterable
+
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from .emailer import send_email
-
-from .forms import ProposalForm, SignupForm, QuestionFormSet
+from .forms import ProposalForm, QuestionFormSet, SignupForm
 from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
-
 
 VALID_STATUSES = {"OPEN", "INPROG", "CLOSED"}
 VALID_DECISIONS = {"approve": "APPROVED", "reject": "REJECTED"}
 
 
-def _safe_email(subject: str, body: str, to_email: str) -> None:
+def _safe_email(*, subject: str, body: str, to_email: str) -> None:
+    """
+    Send email and NEVER crash the user flow, but DO log failures so Render logs show the cause.
+    """
+    if not to_email:
+        print("ℹ️ Email skipped: empty recipient.")
+        return
+
     try:
         send_email(subject=subject, body=body, to_email=to_email)
-    except Exception:
-        pass
+        print(f"✅ Email attempted to={to_email} subject={subject!r}")
+    except Exception as e:
+        print(f"❌ Email FAILED to={to_email} subject={subject!r}")
+        print(repr(e))
+        print(traceback.format_exc())
 
 
-# -------------------------------------------------------
-# Utility: Validate owner token
-# -------------------------------------------------------
-def _get_owner_proposal_or_404(slug, token):
+def _get_owner_proposal_or_404(slug: str, token: str) -> Proposal:
     proposal = get_object_or_404(Proposal, slug=slug)
     if not proposal.owner_token or proposal.owner_token != token:
         raise Http404("Owner page not found.")
@@ -37,18 +46,16 @@ def _get_owner_proposal_or_404(slug, token):
 # -------------------------------------------------------
 # Public Views
 # -------------------------------------------------------
-def home(request):
+def home(request: HttpRequest) -> HttpResponse:
     q = (request.GET.get("q") or "").strip()
     status = (request.GET.get("status") or "").strip()
 
     # Accept multiple tags via ?tags=slug&tags=slug2
-    selected_tags = request.GET.getlist("tags")
-    selected_tags = [t.strip() for t in selected_tags if t and t.strip()]
+    selected_tags = [t.strip() for t in request.GET.getlist("tags") if t and t.strip()]
 
     proposals = (
         Proposal.objects.all()
-        # IMPORTANT: don't use 'num_signups' (often a @property); use a safe annotation name
-        .annotate(signups_count=Count("signups"))
+        .annotate(signups_count=Count("signups"))  # safe annotation
         .prefetch_related("tags")
         .order_by("-created_at")
     )
@@ -75,7 +82,9 @@ def home(request):
             "selected_tags": set(selected_tags),
         },
     )
-def proposal_detail(request, slug):
+
+
+def proposal_detail(request: HttpRequest, slug: str) -> HttpResponse:
     proposal = get_object_or_404(
         Proposal.objects.prefetch_related("questions"),
         slug=slug,
@@ -84,7 +93,7 @@ def proposal_detail(request, slug):
 
 
 @require_http_methods(["GET", "POST"])
-def proposal_create(request):
+def proposal_create(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
         form = ProposalForm(request.POST)
         qset = QuestionFormSet(request.POST, prefix="q")
@@ -94,7 +103,7 @@ def proposal_create(request):
                 proposal = form.save()
 
                 sort_order = 0
-                questions_to_create = []
+                questions_to_create: list[ProposalQuestion] = []
 
                 for f in qset:
                     if f.cleaned_data.get("DELETE"):
@@ -127,25 +136,28 @@ def proposal_create(request):
                     )
                 )
 
-                _safe_email(subject=f"MSRIG Proposal Created – Owner Dashboard Link – {proposal.title}", body=(
-                        f"Your proposal has been created successfully!\n\n"
+                _safe_email(
+                    subject=f"MSRIG Proposal Created – Owner Dashboard Link – {proposal.title}",
+                    body=(
+                        "Your proposal has been created successfully!\n\n"
                         f"Title: {proposal.title}\n\n"
-                        f"Owner dashboard (bookmark this link):\n"
+                        "Owner dashboard (bookmark this link):\n"
                         f"{owner_dashboard_link}\n\n"
-                        f"This link gives you access to:\n"
-                        f"- View signups\n"
-                        f"- Approve / Reject volunteers\n"
-                        f"- Close / Reopen listing\n"
-                        f"- Delete listing (with confirmation)\n\n"
-                        f"Best,\nMSRIG"
-                    ), to_email=recipient)
+                        "This link gives you access to:\n"
+                        "- View signups\n"
+                        "- Approve / Reject volunteers\n"
+                        "- Close / Reopen listing\n"
+                        "- Delete listing (with confirmation)\n\n"
+                        "Best,\nMSRIG"
+                    ),
+                    to_email=recipient,
+                )
 
             messages.success(
                 request,
-                "Proposal created! The owner dashboard link has been sent to your email (printed in the server console during development)."
+                "Proposal created! The owner dashboard link has been sent to the owner email.",
             )
             return redirect("proposal_detail", slug=proposal.slug)
-
     else:
         form = ProposalForm()
         qset = QuestionFormSet(prefix="q")
@@ -154,7 +166,7 @@ def proposal_create(request):
 
 
 @require_http_methods(["GET", "POST"])
-def proposal_signup(request, slug):
+def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
     proposal = get_object_or_404(
         Proposal.objects.prefetch_related("questions"),
         slug=slug,
@@ -177,7 +189,7 @@ def proposal_signup(request, slug):
                     interest_reason=form.cleaned_data.get("interest_reason", "") or "",
                 )
 
-                answers = [
+                answers: list[SignupAnswer] = [
                     SignupAnswer(
                         signup=signup,
                         question=q,
@@ -199,26 +211,34 @@ def proposal_signup(request, slug):
                     )
                 )
 
-                _safe_email(subject=f"New MSRIG Signup – {proposal.title}", body=(
-                        f"A new volunteer signed up for your proposal:\n\n"
+                _safe_email(
+                    subject=f"New MSRIG Signup – {proposal.title}",
+                    body=(
+                        "A new volunteer signed up for your proposal:\n\n"
                         f"Volunteer: {signup.volunteer_name}\n"
                         f"Email: {signup.volunteer_email}\n\n"
-                        f"Owner dashboard:\n{owner_dashboard_link}"
-                    ), to_email=recipient)
+                        "Owner dashboard:\n"
+                        f"{owner_dashboard_link}"
+                    ),
+                    to_email=recipient,
+                )
 
             messages.success(request, "Signed up! The proposal owner has been notified.")
             return redirect("proposal_detail", slug=proposal.slug)
-
     else:
         form = SignupForm(questions=questions)
 
-    return render(request, "portal/proposal_signup.html", {"proposal": proposal, "form": form})
+    return render(
+        request,
+        "portal/proposal_signup.html",
+        {"proposal": proposal, "form": form},
+    )
 
 
 # -------------------------------------------------------
 # Owner Dashboard
 # -------------------------------------------------------
-def proposal_owner_dashboard(request, slug, token):
+def proposal_owner_dashboard(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
 
     signups = (
@@ -238,7 +258,9 @@ def proposal_owner_dashboard(request, slug, token):
 # Approve / Reject Volunteer
 # -------------------------------------------------------
 @require_http_methods(["POST"])
-def proposal_owner_decide_signup(request, slug, token, signup_id, decision):
+def proposal_owner_decide_signup(
+    request: HttpRequest, slug: str, token: str, signup_id: int, decision: str
+) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
 
     if decision not in VALID_DECISIONS:
@@ -253,18 +275,20 @@ def proposal_owner_decide_signup(request, slug, token, signup_id, decision):
         subject = f"MSRIG Update: Approved – {proposal.title}"
         body = (
             f"Hi {signup.volunteer_name},\n\n"
-            f"You have been APPROVED for:\n{proposal.title}\n\n"
-            f"The proposal owner will contact you soon.\n\n"
-            f"Best,\nMSRIG"
+            "You have been APPROVED for:\n"
+            f"{proposal.title}\n\n"
+            "The proposal owner will contact you soon.\n\n"
+            "Best,\nMSRIG"
         )
     else:
         subject = f"MSRIG Update: Not Selected – {proposal.title}"
         body = (
             f"Hi {signup.volunteer_name},\n\n"
-            f"Thank you for signing up for:\n{proposal.title}\n\n"
-            f"At this time, you were not selected.\n\n"
-            f"Please feel free to apply for other opportunities.\n\n"
-            f"Best,\nMSRIG"
+            "Thank you for signing up for:\n"
+            f"{proposal.title}\n\n"
+            "At this time, you were not selected.\n\n"
+            "Please feel free to apply for other opportunities.\n\n"
+            "Best,\nMSRIG"
         )
 
     _safe_email(subject=subject, body=body, to_email=signup.volunteer_email)
@@ -277,7 +301,7 @@ def proposal_owner_decide_signup(request, slug, token, signup_id, decision):
 # Close / Reopen Listing
 # -------------------------------------------------------
 @require_http_methods(["POST"])
-def proposal_owner_close(request, slug, token):
+def proposal_owner_close(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
     proposal.status = "CLOSED"
     proposal.save(update_fields=["status"])
@@ -286,7 +310,7 @@ def proposal_owner_close(request, slug, token):
 
 
 @require_http_methods(["POST"])
-def proposal_owner_reopen(request, slug, token):
+def proposal_owner_reopen(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
     proposal.status = "OPEN"
     proposal.save(update_fields=["status"])
@@ -297,7 +321,7 @@ def proposal_owner_reopen(request, slug, token):
 # -------------------------------------------------------
 # Delete Proposal (Confirmation Page)
 # -------------------------------------------------------
-def proposal_owner_delete_confirm(request, slug, token):
+def proposal_owner_delete_confirm(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
     return render(
         request,
@@ -310,7 +334,7 @@ def proposal_owner_delete_confirm(request, slug, token):
 # Permanent Delete
 # -------------------------------------------------------
 @require_http_methods(["POST"])
-def proposal_owner_delete(request, slug, token):
+def proposal_owner_delete(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
     proposal.delete()
     messages.success(request, "Proposal permanently deleted.")
