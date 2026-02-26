@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
+from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import Http404
@@ -7,21 +8,12 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
-from .emailer import send_email
-
 from .forms import ProposalForm, SignupForm, QuestionFormSet
 from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
 
 
 VALID_STATUSES = {"OPEN", "INPROG", "CLOSED"}
 VALID_DECISIONS = {"approve": "APPROVED", "reject": "REJECTED"}
-
-
-def _safe_email(subject: str, body: str, to_email: str) -> None:
-    try:
-        send_email(subject=subject, body=body, to_email=to_email)
-    except Exception:
-        pass
 
 
 # -------------------------------------------------------
@@ -127,7 +119,9 @@ def proposal_create(request):
                     )
                 )
 
-                _safe_email(subject=f"MSRIG Proposal Created – Owner Dashboard Link – {proposal.title}", body=(
+                send_mail(
+                    subject=f"MSRIG Proposal Created – Owner Dashboard Link – {proposal.title}",
+                    message=(
                         f"Your proposal has been created successfully!\n\n"
                         f"Title: {proposal.title}\n\n"
                         f"Owner dashboard (bookmark this link):\n"
@@ -138,7 +132,11 @@ def proposal_create(request):
                         f"- Close / Reopen listing\n"
                         f"- Delete listing (with confirmation)\n\n"
                         f"Best,\nMSRIG"
-                    ), to_email=recipient)
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[recipient],
+                    fail_silently=True,
+                )
 
             messages.success(
                 request,
@@ -199,12 +197,18 @@ def proposal_signup(request, slug):
                     )
                 )
 
-                _safe_email(subject=f"New MSRIG Signup – {proposal.title}", body=(
+                send_mail(
+                    subject=f"New MSRIG Signup – {proposal.title}",
+                    message=(
                         f"A new volunteer signed up for your proposal:\n\n"
                         f"Volunteer: {signup.volunteer_name}\n"
                         f"Email: {signup.volunteer_email}\n\n"
                         f"Owner dashboard:\n{owner_dashboard_link}"
-                    ), to_email=recipient)
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[recipient],
+                    fail_silently=True,
+                )
 
             messages.success(request, "Signed up! The proposal owner has been notified.")
             return redirect("proposal_detail", slug=proposal.slug)
@@ -267,7 +271,13 @@ def proposal_owner_decide_signup(request, slug, token, signup_id, decision):
             f"Best,\nMSRIG"
         )
 
-    _safe_email(subject=subject, body=body, to_email=signup.volunteer_email)
+    send_mail(
+        subject=subject,
+        message=body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[signup.volunteer_email],
+        fail_silently=True,
+    )
 
     messages.success(request, f"{signup.volunteer_name} marked as {new_status}.")
     return redirect("proposal_owner_dashboard", slug=proposal.slug, token=proposal.owner_token)
