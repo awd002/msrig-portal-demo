@@ -49,25 +49,33 @@ def _get_owner_proposal_or_404(slug: str, token: str) -> Proposal:
 def _proposal_questions(proposal: Proposal) -> list[ProposalQuestion]:
     """
     Returns proposal questions regardless of related_name implementation.
-    You currently use proposal.questions; keep that, but fall back safely.
+    Preferred: related_name="questions".
     """
-    # Preferred: related_name="questions"
     if hasattr(proposal, "questions"):
         return list(proposal.questions.all().order_by("sort_order", "id"))
-    # Fallback: default related name proposalquestion_set
     if hasattr(proposal, "proposalquestion_set"):
         return list(proposal.proposalquestion_set.all().order_by("sort_order", "id"))
     return []
 
 
+def _clean_str(v: Any) -> str:
+    return ("" if v is None else str(v)).strip()
+
+
 def _signup_field_value(cd: dict[str, Any], *keys: str) -> str:
     for k in keys:
-        v = cd.get(k)
-        if v is not None:
-            s = str(v).strip()
-            if s:
-                return s
+        s = _clean_str(cd.get(k))
+        if s:
+            return s
     return ""
+
+
+def _signup_display_name(signup: Signup) -> str:
+    return _clean_str(getattr(signup, "volunteer_name", None)) or _clean_str(getattr(signup, "name", None)) or f"Signup #{signup.pk}"
+
+
+def _signup_display_email(signup: Signup) -> str:
+    return _clean_str(getattr(signup, "volunteer_email", None)) or _clean_str(getattr(signup, "email", None))
 
 
 def _make_signup_instance(*, proposal: Proposal, name: str, email: str, message: str, role: str) -> Signup:
@@ -76,44 +84,67 @@ def _make_signup_instance(*, proposal: Proposal, name: str, email: str, message:
       - volunteer_name / volunteer_email / interest_reason
       - name / email / message / role
     """
-    signup = Signup()
-    signup.proposal = proposal
+    s = Signup()
+    s.proposal = proposal
 
-    # Name
-    if hasattr(signup, "volunteer_name"):
-        signup.volunteer_name = name
-    elif hasattr(signup, "name"):
-        signup.name = name
+    if hasattr(s, "volunteer_name"):
+        s.volunteer_name = name
+    elif hasattr(s, "name"):
+        s.name = name
 
-    # Email
-    if hasattr(signup, "volunteer_email"):
-        signup.volunteer_email = email
-    elif hasattr(signup, "email"):
-        signup.email = email
+    if hasattr(s, "volunteer_email"):
+        s.volunteer_email = email
+    elif hasattr(s, "email"):
+        s.email = email
 
-    # Message / reason
-    if hasattr(signup, "interest_reason"):
-        signup.interest_reason = message
-    elif hasattr(signup, "message"):
-        signup.message = message
+    if hasattr(s, "interest_reason"):
+        s.interest_reason = message
+    elif hasattr(s, "message"):
+        s.message = message
 
-    # Role (optional)
-    if hasattr(signup, "role"):
-        signup.role = role
+    if hasattr(s, "role"):
+        s.role = role
 
-    return signup
+    return s
 
 
-def _signup_display_name(signup: Signup) -> str:
-    return (
-        (getattr(signup, "volunteer_name", None) or "")
-        or (getattr(signup, "name", None) or "")
-        or f"Signup #{signup.pk}"
-    )
+def _normalize_signup_for_template(s: Signup) -> dict[str, Any]:
+    """
+    Normalize Signup fields so templates can always rely on:
+      name, email, message, role, status, created_at, id, answers, obj
+    """
+    name = _clean_str(getattr(s, "volunteer_name", None)) or _clean_str(getattr(s, "name", None))
+    email = _clean_str(getattr(s, "volunteer_email", None)) or _clean_str(getattr(s, "email", None))
+    message_txt = _clean_str(getattr(s, "interest_reason", None)) or _clean_str(getattr(s, "message", None))
+    role = _clean_str(getattr(s, "role", None))
+    status = _clean_str(getattr(s, "status", None))
+    created_at = getattr(s, "created_at", None)
+    answers = list(s.answers.all()) if hasattr(s, "answers") else []
+    return {
+        "obj": s,
+        "id": s.id,
+        "created_at": created_at,
+        "name": name or f"Signup #{s.id}",
+        "email": email,
+        "message": message_txt,
+        "role": role,
+        "status": status,
+        "answers": answers,
+    }
 
 
-def _signup_display_email(signup: Signup) -> str:
-    return (getattr(signup, "volunteer_email", None) or "") or (getattr(signup, "email", None) or "")
+def _set_signup_status(signup: Signup, status: str) -> None:
+    """
+    Update status using model method if present, else via status field.
+    """
+    if hasattr(signup, "set_status") and callable(getattr(signup, "set_status")):
+        signup.set_status(status)
+        return
+    if hasattr(signup, "status"):
+        signup.status = status
+        signup.save(update_fields=["status"])
+        return
+    signup.save()
 
 
 # -------------------------------------------------------
@@ -175,15 +206,12 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
 
                 sort_order = 0
                 questions_to_create: list[ProposalQuestion] = []
-
                 for f in qset:
                     if f.cleaned_data.get("DELETE"):
                         continue
-
-                    prompt = (f.cleaned_data.get("prompt") or "").strip()
+                    prompt = _clean_str(f.cleaned_data.get("prompt"))
                     if not prompt:
                         continue
-
                     questions_to_create.append(
                         ProposalQuestion(
                             proposal=proposal,
@@ -197,7 +225,7 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
                 if questions_to_create:
                     ProposalQuestion.objects.bulk_create(questions_to_create)
 
-            recipient = getattr(proposal, "created_by_email", None)
+            recipient = _clean_str(getattr(proposal, "created_by_email", None))
             if recipient:
                 owner_dashboard_link = request.build_absolute_uri(
                     reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
@@ -235,10 +263,7 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
     - Base fields handled by SignupForm
     - Custom questions handled by POST keys q_<question_id>
     """
-    proposal = get_object_or_404(
-        Proposal.objects.prefetch_related("questions"),
-        slug=slug,
-    )
+    proposal = get_object_or_404(Proposal.objects.prefetch_related("questions"), slug=slug)
 
     if proposal.status != "OPEN":
         messages.warning(request, "This proposal is not accepting signups right now.")
@@ -248,29 +273,25 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
     q_errors: dict[int, str] = {}
 
     if request.method == "POST":
-        # IMPORTANT: If your SignupForm supports dynamic questions via __init__(questions=...),
-        # you can pass them. If not, it will ignore because we won't pass unknown kwargs.
+        # If SignupForm supports dynamic questions kwarg, use it; else fall back.
         try:
             form = SignupForm(request.POST, questions=questions)  # type: ignore[arg-type]
         except TypeError:
             form = SignupForm(request.POST)
 
-        # Validate required custom questions safely
+        # Validate required custom questions
         for q in questions:
-            val = (request.POST.get(f"q_{q.id}") or "").strip()
+            val = _clean_str(request.POST.get(f"q_{q.id}"))
             if q.is_required and not val:
                 q_errors[q.id] = "This question is required."
 
         if form.is_valid() and not q_errors:
             cd = form.cleaned_data
-
-            # Support either naming convention
             name = _signup_field_value(cd, "volunteer_name", "name")
             email = _signup_field_value(cd, "volunteer_email", "email")
             message_txt = _signup_field_value(cd, "interest_reason", "message")
             role = _signup_field_value(cd, "role")
 
-            # As an extra safety net, never allow blank email/name to slip through
             if not name:
                 messages.error(request, "Please enter your name.")
             elif not email:
@@ -278,23 +299,18 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
             else:
                 with transaction.atomic():
                     signup = _make_signup_instance(
-                        proposal=proposal,
-                        name=name,
-                        email=email,
-                        message=message_txt,
-                        role=role,
+                        proposal=proposal, name=name, email=email, message=message_txt, role=role
                     )
                     signup.save()
 
                     answers_to_create: list[SignupAnswer] = []
                     for q in questions:
-                        val = (request.POST.get(f"q_{q.id}") or "").strip()
+                        val = _clean_str(request.POST.get(f"q_{q.id}"))
                         answers_to_create.append(SignupAnswer(signup=signup, question=q, answer=val))
-
                     if answers_to_create:
                         SignupAnswer.objects.bulk_create(answers_to_create)
 
-                recipient = getattr(proposal, "created_by_email", None)
+                recipient = _clean_str(getattr(proposal, "created_by_email", None))
                 if recipient:
                     owner_dashboard_link = request.build_absolute_uri(
                         reverse("proposal_owner_dashboard", kwargs={"slug": proposal.slug, "token": proposal.owner_token})
@@ -318,19 +334,14 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
             messages.error(request, "Please answer the required custom questions.")
     else:
         try:
-            form = SignupForm(questions=_proposal_questions(proposal))  # type: ignore[arg-type]
+            form = SignupForm(questions=questions)  # type: ignore[arg-type]
         except TypeError:
             form = SignupForm()
 
     return render(
         request,
         "portal/proposal_signup.html",
-        {
-            "proposal": proposal,
-            "form": form,
-            "questions": questions,
-            "q_errors": q_errors,
-        },
+        {"proposal": proposal, "form": form, "questions": questions, "q_errors": q_errors},
     )
 
 
@@ -340,11 +351,13 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
 def proposal_owner_dashboard(request: HttpRequest, slug: str, token: str) -> HttpResponse:
     proposal = _get_owner_proposal_or_404(slug, token)
 
-    signups = (
+    signups_qs = (
         Signup.objects.filter(proposal=proposal)
         .order_by("-created_at")
         .prefetch_related("answers__question")
     )
+
+    signups = [_normalize_signup_for_template(s) for s in signups_qs]
 
     return render(
         request,
@@ -368,14 +381,7 @@ def proposal_owner_decide_signup(
     signup = get_object_or_404(Signup, id=signup_id, proposal=proposal)
     new_status = VALID_DECISIONS[decision]
 
-    # Use model method if present, else set a field if you have it
-    if hasattr(signup, "set_status") and callable(getattr(signup, "set_status")):
-        signup.set_status(new_status)
-    elif hasattr(signup, "status"):
-        signup.status = new_status
-        signup.save(update_fields=["status"])
-    else:
-        signup.save()
+    _set_signup_status(signup, new_status)
 
     display_name = _signup_display_name(signup)
     display_email = _signup_display_email(signup)
