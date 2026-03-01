@@ -207,23 +207,6 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
                 sort_order = 0
                 questions_to_create: list[ProposalQuestion] = []
                 for f in qset:
-                    cd = getattr(f, "cleaned_data", {}) or {}
-                    if cd.get("DELETE"):
-                        continue
-
-                    prompt = _clean_str(cd.get("prompt"))
-                    if not prompt:
-                        continue
-
-                    questions_to_create.append(
-                        ProposalQuestion(
-                            proposal=proposal,
-                            prompt=prompt,
-                            is_required=bool(cd.get("is_required")),
-                            sort_order=sort_order,
-                        )
-                    )
-                    sort_order += 1
                     if f.cleaned_data.get("DELETE"):
                         continue
                     prompt = _clean_str(f.cleaned_data.get("prompt"))

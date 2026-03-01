@@ -73,20 +73,31 @@
 
           <hr class="my-4">
 
-          {# ------------------ Optional question formset ------------------ #}
+          {# ------------------ Optional question formset (with + button) ------------------ #}
           {% if qset %}
-            <div class="mb-3">
-              <div style="font-weight:900; font-size:1.05rem;">Application Questions (optional)</div>
-              <div class="text-muted" style="font-weight:700; font-size:.9rem;">
-                Add prompts volunteers will answer when signing up.
+            <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+              <div>
+                <div style="font-weight:900; font-size:1.05rem;">Application Questions (optional)</div>
+                <div class="text-muted" style="font-weight:700; font-size:.9rem;">
+                  Add prompts volunteers will answer when signing up.
+                </div>
               </div>
+
+              <button type="button" id="add-question-btn" class="btn btn-outline-secondary"
+                      style="border-radius:12px;font-weight:900;">
+                <span style="display:inline-block;width:22px;height:22px;line-height:20px;text-align:center;
+                             border-radius:999px;background:rgba(240,180,41,.95);color:#111;margin-right:6px;">
+                  +
+                </span>
+                Add question
+              </button>
             </div>
 
             {{ qset.management_form }}
 
-            <div class="vstack gap-3">
+            <div id="questions-list" class="vstack gap-3">
               {% for f in qset %}
-                <div class="p-3" style="border:1px solid #e9ecef; border-radius:14px; background:#fff;">
+                <div class="p-3 q-row" data-q-row style="border:1px solid #e9ecef; border-radius:14px; background:#fff;">
                   <div class="mb-2">
                     <label class="form-label" style="font-weight:800;">Question</label>
                     {{ f.prompt|add_class:"form-control" }}
@@ -96,23 +107,128 @@
                   </div>
 
                   <div class="d-flex flex-wrap gap-3 align-items-center">
-                    <div class="form-check">
-                      {{ f.is_required|add_class:"form-check-input" }}
-                      <label class="form-check-label" style="font-weight:700;">
-                        Required
-                      </label>
-                    </div>
+                    {% if f.is_required %}
+                      <div class="form-check">
+                        {{ f.is_required|add_class:"form-check-input" }}
+                        <label class="form-check-label" style="font-weight:700;">
+                          Required
+                        </label>
+                      </div>
+                    {% endif %}
 
-                    <div class="form-check">
-                      {{ f.DELETE|add_class:"form-check-input" }}
-                      <label class="form-check-label text-danger" style="font-weight:700;">
-                        Remove
-                      </label>
-                    </div>
+                    {# Keep Django's DELETE input if it exists #}
+                    {% if f.DELETE %}
+                      <div class="form-check d-none">
+                        {{ f.DELETE|add_class:"form-check-input" }}
+                      </div>
+                    {% endif %}
+
+                    <button type="button" class="btn btn-sm btn-outline-danger ms-auto remove-question-btn"
+                            style="border-radius:10px;font-weight:900;">
+                      Remove
+                    </button>
                   </div>
                 </div>
               {% endfor %}
             </div>
+
+            {# Template row (Django empty_form uses __prefix__) #}
+            <template id="question-empty-form-template">
+              <div class="p-3 q-row" data-q-row style="border:1px solid #e9ecef; border-radius:14px; background:#fff;">
+                <div class="mb-2">
+                  <label class="form-label" style="font-weight:800;">Question</label>
+                  {{ qset.empty_form.prompt|add_class:"form-control" }}
+                </div>
+
+                <div class="d-flex flex-wrap gap-3 align-items-center">
+                  {% if qset.empty_form.is_required %}
+                    <div class="form-check">
+                      {{ qset.empty_form.is_required|add_class:"form-check-input" }}
+                      <label class="form-check-label" style="font-weight:700;">
+                        Required
+                      </label>
+                    </div>
+                  {% endif %}
+
+                  {% if qset.empty_form.DELETE %}
+                    <div class="form-check d-none">
+                      {{ qset.empty_form.DELETE|add_class:"form-check-input" }}
+                    </div>
+                  {% endif %}
+
+                  <button type="button" class="btn btn-sm btn-outline-danger ms-auto remove-question-btn"
+                          style="border-radius:10px;font-weight:900;">
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <script>
+              (function () {
+                // IMPORTANT: prefix must match what your view uses when creating the formset.
+                // If your view uses QuestionFormSet(prefix="q"), keep "q" here.
+                const PREFIX = "{{ qset.prefix|default:'q' }}";
+
+                const addBtn = document.getElementById("add-question-btn");
+                const list = document.getElementById("questions-list");
+                const tmpl = document.getElementById("question-empty-form-template");
+
+                function totalInput() {
+                  return document.querySelector(`input[name="${PREFIX}-TOTAL_FORMS"]`);
+                }
+
+                function replacePrefix(html, index) {
+                  // Django empty_form uses __prefix__ placeholders
+                  return html
+                    .replaceAll(`${PREFIX}-__prefix__-`, `${PREFIX}-${index}-`)
+                    .replaceAll(`${PREFIX}-__prefix__`, `${PREFIX}-${index}`);
+                }
+
+                function addQuestionRow() {
+                  const t = totalInput();
+                  const index = parseInt(t.value, 10);
+
+                  const raw = tmpl.innerHTML.trim();
+                  const html = replacePrefix(raw, index);
+
+                  const wrap = document.createElement("div");
+                  wrap.innerHTML = html;
+
+                  const node = wrap.firstElementChild;
+                  list.appendChild(node);
+
+                  // bump TOTAL_FORMS so Django will accept the new form
+                  t.value = index + 1;
+
+                  // focus the new prompt input
+                  const input = node.querySelector("input, textarea, select");
+                  if (input) input.focus();
+                }
+
+                function softRemove(row) {
+                  // Prefer DELETE checkbox (can_delete=True); just tick and hide
+                  const del = row.querySelector(`input[type="checkbox"][name$="-DELETE"]`);
+                  if (del) {
+                    del.checked = true;
+                    row.style.display = "none";
+                  } else {
+                    // fallback: remove DOM node (TOTAL_FORMS will stay high, but Django will ignore missing indices)
+                    row.remove();
+                  }
+                }
+
+                addBtn?.addEventListener("click", addQuestionRow);
+
+                list?.addEventListener("click", function (e) {
+                  const btn = e.target.closest(".remove-question-btn");
+                  if (!btn) return;
+                  const row = btn.closest("[data-q-row]");
+                  if (!row) return;
+                  softRemove(row);
+                });
+              })();
+            </script>
           {% endif %}
 
           <div class="d-flex gap-2 justify-content-end mt-4">
