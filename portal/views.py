@@ -224,20 +224,6 @@ def proposal_create(request: HttpRequest) -> HttpResponse:
                         )
                     )
                     sort_order += 1
-                    if f.cleaned_data.get("DELETE"):
-                        continue
-                    prompt = _clean_str(f.cleaned_data.get("prompt"))
-                    if not prompt:
-                        continue
-                    questions_to_create.append(
-                        ProposalQuestion(
-                            proposal=proposal,
-                            prompt=prompt,
-                            is_required=bool(f.cleaned_data.get("is_required")),
-                            sort_order=sort_order,
-                        )
-                    )
-                    sort_order += 1
 
                 if questions_to_create:
                     ProposalQuestion.objects.bulk_create(questions_to_create)
