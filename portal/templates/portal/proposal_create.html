@@ -62,6 +62,13 @@
                   <div class="invalid-feedback">{{ field.errors|striptags }}</div>
                 {% else %}
                   {{ field|add_class:"form-control" }}
+
+                  {% if field.name == "created_by_email" %}
+                    <div style="margin-top:10px; padding:12px 14px; background:#fff7ed; border:1px solid #fdba74; border-radius:12px; color:#9a3412; font-weight:800; font-size:.95rem;">
+                      ⚠️ Important: After submitting, you will receive a private owner dashboard link by email.
+                      Please check your junk/spam folder and save that link — it is the only way to access and manage your proposal.
+                    </div>
+                  {% endif %}
                 {% endif %}
 
                 {% if field.help_text %}
@@ -116,7 +123,6 @@
                       </div>
                     {% endif %}
 
-                    {# Keep Django's DELETE input if it exists #}
                     {% if f.DELETE %}
                       <div class="form-check d-none">
                         {{ f.DELETE|add_class:"form-check-input" }}
@@ -132,7 +138,6 @@
               {% endfor %}
             </div>
 
-            {# Template row (Django empty_form uses __prefix__) #}
             <template id="question-empty-form-template">
               <div class="p-3 q-row" data-q-row style="border:1px solid #e9ecef; border-radius:14px; background:#fff;">
                 <div class="mb-2">
@@ -166,8 +171,6 @@
 
             <script>
               (function () {
-                // IMPORTANT: prefix must match what your view uses when creating the formset.
-                // If your view uses QuestionFormSet(prefix="q"), keep "q" here.
                 const PREFIX = "{{ qset.prefix|default:'q' }}";
 
                 const addBtn = document.getElementById("add-question-btn");
@@ -179,7 +182,6 @@
                 }
 
                 function replacePrefix(html, index) {
-                  // Django empty_form uses __prefix__ placeholders
                   return html
                     .replaceAll(`${PREFIX}-__prefix__-`, `${PREFIX}-${index}-`)
                     .replaceAll(`${PREFIX}-__prefix__`, `${PREFIX}-${index}`);
@@ -198,22 +200,18 @@
                   const node = wrap.firstElementChild;
                   list.appendChild(node);
 
-                  // bump TOTAL_FORMS so Django will accept the new form
                   t.value = index + 1;
 
-                  // focus the new prompt input
                   const input = node.querySelector("input, textarea, select");
                   if (input) input.focus();
                 }
 
                 function softRemove(row) {
-                  // Prefer DELETE checkbox (can_delete=True); just tick and hide
                   const del = row.querySelector(`input[type="checkbox"][name$="-DELETE"]`);
                   if (del) {
                     del.checked = true;
                     row.style.display = "none";
                   } else {
-                    // fallback: remove DOM node (TOTAL_FORMS will stay high, but Django will ignore missing indices)
                     row.remove();
                   }
                 }
