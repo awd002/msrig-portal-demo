@@ -95,6 +95,11 @@
             </form>
           {% endif %}
 
+          <a class="btn btn-soft-info"
+             href="{% url 'proposal_owner_edit' proposal.slug token %}">
+            Edit Proposal
+          </a>
+
           <a class="btn btn-delete-proposal"
              href="{% url 'proposal_owner_delete_confirm' proposal.slug token %}">
             Delete Proposal
@@ -196,7 +201,7 @@
                   {% for answer in signup.answers %}
                     <div class="mb-3">
                       <strong>{{ answer.question.prompt }}</strong>
-                      <div class="text-muted qa-answer">{{ answer.answer|default:"N/A" }}</div>
+                      <div class="text-muted qa-answer">{{ answer.answer_text|default:"N/A" }}</div>
                     </div>
                   {% endfor %}
                 {% else %}

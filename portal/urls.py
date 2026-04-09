@@ -36,6 +36,13 @@ urlpatterns = [
         name="proposal_owner_reopen",
     ),
 
+    # Edit proposal
+    path(
+        "proposal/<slug:slug>/owner/<str:token>/edit/",
+        views.proposal_owner_edit,
+        name="proposal_owner_edit",
+    ),
+
     # -----------------------------
     # Delete proposal (with confirmation)
     # -----------------------------

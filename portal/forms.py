@@ -1,5 +1,5 @@
 from django import forms
-from django.forms import formset_factory
+from django.forms import formset_factory, inlineformset_factory
 
 from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
 
@@ -76,6 +76,24 @@ QuestionFormSet = formset_factory(
     ProposalQuestionCreateForm,
     extra=0,
     can_delete=True,
+)
+
+
+ProposalQuestionInlineFormSet = inlineformset_factory(
+    Proposal,
+    ProposalQuestion,
+    fields=["prompt", "is_required"],
+    extra=0,
+    can_delete=True,
+    widgets={
+        "prompt": forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g., What year are you? Any stats/software experience?",
+            }
+        ),
+        "is_required": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    },
 )
 
 

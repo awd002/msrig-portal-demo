@@ -12,7 +12,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from .emailer import send_email
-from .forms import ProposalForm, QuestionFormSet, SignupForm
+from .forms import ProposalForm, ProposalQuestionInlineFormSet, QuestionFormSet, SignupForm
 from .models import Proposal, ProposalQuestion, Signup, SignupAnswer, Tag
 
 VALID_STATUSES = {"OPEN", "INPROG", "CLOSED"}
@@ -330,6 +330,18 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
                         to_email=recipient,
                     )
 
+                _safe_email(
+                    subject=f"MSRIG Application Received – {proposal.title}",
+                    text_body=(
+                        f"Hi {name},\n\n"
+                        f"Your application for the following proposal has been received:\n\n"
+                        f"Title: {proposal.title}\n\n"
+                        f"The proposal owner will review your application and be in touch if selected.\n\n"
+                        f"Best,\nMSRIG"
+                    ),
+                    to_email=email,
+                )
+
                 messages.success(request, "Signed up! The proposal owner has been notified.")
                 return redirect("proposal_detail", slug=proposal.slug)
 
@@ -457,3 +469,32 @@ def proposal_owner_delete(request: HttpRequest, slug: str, token: str) -> HttpRe
     proposal.delete()
     messages.success(request, "Proposal permanently deleted.")
     return redirect("home")
+
+
+# -------------------------------------------------------
+# Edit Proposal
+# -------------------------------------------------------
+@require_http_methods(["GET", "POST"])
+def proposal_owner_edit(request: HttpRequest, slug: str, token: str) -> HttpResponse:
+    proposal = _get_owner_proposal_or_404(slug, token)
+
+    if request.method == "POST":
+        form = ProposalForm(request.POST, instance=proposal)
+        qset = ProposalQuestionInlineFormSet(request.POST, instance=proposal, prefix="q")
+
+        if form.is_valid() and qset.is_valid():
+            with transaction.atomic():
+                form.save()
+                qset.save()
+            messages.success(request, "Proposal updated successfully.")
+            return redirect("proposal_owner_dashboard", slug=proposal.slug, token=proposal.owner_token)
+    else:
+        form = ProposalForm(instance=proposal)
+        qset = ProposalQuestionInlineFormSet(instance=proposal, prefix="q")
+
+    return render(request, "portal/proposal_owner_edit.html", {
+        "form": form,
+        "qset": qset,
+        "proposal": proposal,
+        "token": token,
+    })
