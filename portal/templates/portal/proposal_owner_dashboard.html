@@ -42,28 +42,50 @@
   .btn-rounded-12{ border-radius:12px; font-weight:900; }
   .btn-rounded-10{ border-radius:10px; font-weight:900; }
 
-  .btn-soft-danger{
-    background:#fee2e2; color:#7f1d1d; border:1px solid rgba(127,29,29,.18);
-    border-radius:12px; font-weight:900;
+  /* White outline — Edit Proposal (on purple hero) */
+  .btn-hero-outline{
+    background: transparent;
+    border: 2px solid rgba(255,255,255,.7);
+    color: #fff;
+    border-radius: 12px;
+    font-weight: 900;
+    padding: 9px 18px;
+    text-decoration: none;
+    display: inline-block;
   }
-  .btn-soft-danger:hover{ filter: brightness(.98); }
+  .btn-hero-outline:hover{
+    background: rgba(255,255,255,.12);
+    color: #fff;
+  }
 
-  .btn-soft-info{
-    background:#dbeafe; color:#1e40af; border:1px solid rgba(30,64,175,.18);
-    border-radius:12px; font-weight:900;
+  /* Neutral gray — Close / Reopen (on purple hero) */
+  .btn-hero-neutral{
+    background: rgba(255,255,255,.15);
+    border: 1.5px solid rgba(255,255,255,.35);
+    color: #fff;
+    border-radius: 12px;
+    font-weight: 900;
+    padding: 10px 18px;
   }
-  .btn-soft-info:hover{ filter: brightness(.98); }
+  .btn-hero-neutral:hover{
+    background: rgba(255,255,255,.25);
+    color: #fff;
+  }
 
-  .btn-delete-proposal{
-    background:#7f1d1d;
-    color:#fff;
-    border:1px solid rgba(127,29,29,.25);
-    border-radius:12px;
-    font-weight:900;
+  /* Red text only — Delete Proposal (on purple hero) */
+  .btn-hero-danger{
+    background: transparent;
+    border: none;
+    color: #fca5a5;
+    border-radius: 12px;
+    font-weight: 900;
+    padding: 10px 18px;
+    text-decoration: none;
+    display: inline-block;
   }
-  .btn-delete-proposal:hover{
-    background:#6b1717;
-    color:#fff;
+  .btn-hero-danger:hover{
+    background: rgba(255,255,255,.08);
+    color: #fecaca;
   }
 
   .inline-form{ display:inline; margin:0; }
@@ -86,21 +108,21 @@
           {% if proposal.status == "OPEN" %}
             <form class="inline-form" method="POST" action="{% url 'proposal_owner_close' proposal.slug token %}">
               {% csrf_token %}
-              <button type="submit" class="btn btn-soft-danger">Close Listing</button>
+              <button type="submit" class="btn btn-hero-neutral">Close Listing</button>
             </form>
           {% else %}
             <form class="inline-form" method="POST" action="{% url 'proposal_owner_reopen' proposal.slug token %}">
               {% csrf_token %}
-              <button type="submit" class="btn btn-soft-info">Reopen Listing</button>
+              <button type="submit" class="btn btn-hero-neutral">Reopen Listing</button>
             </form>
           {% endif %}
 
-          <a class="btn btn-soft-info"
+          <a class="btn-hero-outline"
              href="{% url 'proposal_owner_edit' proposal.slug token %}">
             Edit Proposal
           </a>
 
-          <a class="btn btn-delete-proposal"
+          <a class="btn-hero-danger"
              href="{% url 'proposal_owner_delete_confirm' proposal.slug token %}">
             Delete Proposal
           </a>
