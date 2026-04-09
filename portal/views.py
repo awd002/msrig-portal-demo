@@ -309,7 +309,7 @@ def proposal_signup(request: HttpRequest, slug: str) -> HttpResponse:
                     answers_to_create: list[SignupAnswer] = []
                     for q in questions:
                         val = _clean_str(request.POST.get(f"q_{q.id}"))
-                        answers_to_create.append(SignupAnswer(signup=signup, question=q, answer=val))
+                        answers_to_create.append(SignupAnswer(signup=signup, question=q, answer_text=val))
                     if answers_to_create:
                         SignupAnswer.objects.bulk_create(answers_to_create)
 

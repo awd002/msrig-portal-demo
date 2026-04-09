@@ -13,13 +13,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------
 # Core security / deployment
 # ------------------------------------------------------------
-SECRET_KEY = os.environ.get(
-    "DJANGO_SECRET_KEY",
-    # Fallback is OK for local-only. On Render you MUST set DJANGO_SECRET_KEY.
-    "django-insecure-change-me-in-production",
-)
+_secret_key = os.environ.get("DJANGO_SECRET_KEY", "")
+if not _secret_key:
+    import warnings
+    _secret_key = "django-insecure-change-me-in-production"
+    warnings.warn(
+        "DJANGO_SECRET_KEY is not set. Using an insecure fallback — never deploy this to production.",
+        stacklevel=2,
+    )
+SECRET_KEY = _secret_key
 
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 
 # Comma-separated hosts in env: "msrig-portal-demo.onrender.com,localhost,127.0.0.1"
 _allowed_hosts = os.environ.get("ALLOWED_HOSTS", "")
