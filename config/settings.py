@@ -13,15 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # ------------------------------------------------------------
 # Core security / deployment
 # ------------------------------------------------------------
-_secret_key = os.environ.get("DJANGO_SECRET_KEY", "")
-if not _secret_key:
-    import warnings
-    _secret_key = "django-insecure-change-me-in-production"
-    warnings.warn(
-        "DJANGO_SECRET_KEY is not set. Using an insecure fallback — never deploy this to production.",
-        stacklevel=2,
-    )
-SECRET_KEY = _secret_key
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "django-insecure-change-me-in-production")
 
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 
