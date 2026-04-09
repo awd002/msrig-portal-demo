@@ -33,6 +33,11 @@ else:
     # Safe defaults for local dev
     ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
+# Render automatically sets RENDER_EXTERNAL_HOSTNAME — include it so health checks pass
+_render_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME", "")
+if _render_host and _render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(_render_host)
+
 # If you're behind a proxy (Render), this helps Django know the original scheme
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
