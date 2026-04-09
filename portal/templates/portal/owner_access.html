@@ -1,0 +1,74 @@
+{% extends "portal/base.html" %}
+
+{% block title %}My Proposals — MSRIG Portal{% endblock %}
+
+{% block content %}
+
+<div class="hero">
+  <div class="container">
+    <h1 class="mb-2" style="font-weight:900;">My Proposals</h1>
+    <div class="text-light" style="opacity:.95; font-weight:700;">
+      Enter your email to receive dashboard links for all proposals you've created.
+    </div>
+  </div>
+</div>
+
+<div class="surface">
+  <div class="container" style="max-width: 560px;">
+    <div class="card shadow-sm" style="border-radius:18px;">
+      <div class="card-body" style="padding:32px;">
+
+        {% if submitted %}
+          <div style="text-align:center; padding: 12px 0 8px;">
+            <div style="font-size:2.5rem; margin-bottom:16px;">📬</div>
+            <h2 style="font-weight:900; font-size:1.4rem; margin-bottom:10px;">Check your inbox</h2>
+            <p class="text-muted" style="font-weight:700; margin-bottom:24px;">
+              If we found proposals associated with that email, you'll receive your dashboard links shortly.
+              Don't forget to check your spam folder.
+            </p>
+            <a href="{% url 'owner_access' %}" class="btn btn-outline-secondary" style="border-radius:12px; font-weight:800;">
+              Try a different email
+            </a>
+          </div>
+
+        {% else %}
+          <h2 style="font-weight:900; font-size:1.25rem; margin-bottom:6px;">Access your dashboard</h2>
+          <p class="text-muted" style="font-weight:700; margin-bottom:24px;">
+            We'll email you links to every proposal you've submitted with this address.
+          </p>
+
+          <form method="POST" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" style="font-weight:800;">Email address</label>
+              <input
+                type="email"
+                name="email"
+                class="form-control"
+                placeholder="your.email@domain.com"
+                required
+                autofocus
+                style="border-radius:10px; padding:10px 14px;"
+              >
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-gold" style="padding:12px; font-size:1rem;">
+                Send my dashboard links
+              </button>
+            </div>
+          </form>
+
+          <div class="mt-4 text-center">
+            <span class="text-muted" style="font-weight:700; font-size:.9rem;">
+              Don't have a proposal yet?
+              <a href="{% url 'proposal_create' %}" style="color: var(--msrig-purple); font-weight:800;">Submit one here.</a>
+            </span>
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

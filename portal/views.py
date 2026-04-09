@@ -472,6 +472,40 @@ def proposal_owner_delete(request: HttpRequest, slug: str, token: str) -> HttpRe
 
 
 # -------------------------------------------------------
+# Owner Access — resend dashboard links by email
+# -------------------------------------------------------
+@require_http_methods(["GET", "POST"])
+def owner_access(request: HttpRequest) -> HttpResponse:
+    submitted = False
+
+    if request.method == "POST":
+        email = _clean_str(request.POST.get("email"))
+        if email:
+            proposals = Proposal.objects.filter(created_by_email__iexact=email).order_by("-created_at")
+            if proposals.exists():
+                lines = []
+                for p in proposals:
+                    dashboard_url = request.build_absolute_uri(
+                        reverse("proposal_owner_dashboard", kwargs={"slug": p.slug, "token": p.owner_token})
+                    )
+                    lines.append(f"• {p.title}\n  {dashboard_url}")
+
+                _safe_email(
+                    subject="MSRIG — Your Proposal Dashboard Links",
+                    text_body=(
+                        "Here are the owner dashboard links for proposals associated with your email:\n\n"
+                        + "\n\n".join(lines)
+                        + "\n\nBookmark the relevant link so you can return anytime.\n\nBest,\nMSRIG"
+                    ),
+                    to_email=email,
+                )
+        # Always show success — don't reveal whether email exists
+        submitted = True
+
+    return render(request, "portal/owner_access.html", {"submitted": submitted})
+
+
+# -------------------------------------------------------
 # Edit Proposal
 # -------------------------------------------------------
 @require_http_methods(["GET", "POST"])
