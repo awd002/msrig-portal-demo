@@ -5,7 +5,7 @@ Compatible with local dev (SQLite) and Render (Postgres via DATABASE_URL).
 
 from pathlib import Path
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -102,7 +102,7 @@ if DATABASE_URL:
             "ENGINE": "django.db.backends.postgresql",
             "NAME": parsed.path.lstrip("/"),
             "USER": parsed.username or "",
-            "PASSWORD": parsed.password or "",
+            "PASSWORD": unquote(parsed.password or ""),
             "HOST": parsed.hostname or "",
             "PORT": str(parsed.port or 5432),
             "CONN_MAX_AGE": int(os.environ.get("DJANGO_CONN_MAX_AGE", "60")),
